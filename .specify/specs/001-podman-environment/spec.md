@@ -5,6 +5,13 @@
 **Status**: Draft  
 **Input**: User description: "Replace Docker with Podman for enhanced security and rootless operation."
 
+## Related Documents
+- Extension: `d:\git\6terminai\terminai-vscode-extension`
+- MCP Server: `d:\git\6terminai\mcp-server`
+- Container Environment: `d:\git\6terminai\container`
+- Playwright MCP Server: `d:\git\6terminai\container\mcp_server`
+- Auto-Build Specification: `d:\git\6terminai\.specify\specs\010-auto-podman-build\spec.md`
+
 ## Implementation Summary
 
 This feature implements integration with Podman containerization to run a Playwright MCP (Model Context Protocol) server for browser automation. The Podman environment provides a secure, isolated infrastructure for running the MCP server that controls browser interactions with AI chat websites. This approach enhances security by keeping browser automation within a container while also simplifying installation and improving startup performance.
@@ -171,7 +178,7 @@ As a learner using the Learning Buddy extension, I want to see persistent instal
 ### Functional Requirements
 
 - **FR-001**: Extension MUST include embedded Podman functionality for lightweight, daemonless operation
-- **FR-002**: Extension MUST initialize the Podman environment automatically
+- **FR-002**: Extension MUST initialize the Podman environment automatically, including automatic building of the Playwright MCP server image using the container/mcp_server directory
 - **FR-003**: Extension MUST communicate with Podman containers to manage browser automation for AI service access
 - **FR-004**: Extension MUST prevent browser automation data from being stored on the host filesystem
 - **FR-005**: Extension MUST integrate with TerminAI Terminal for seamless AI service access
