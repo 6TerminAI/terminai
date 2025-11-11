@@ -209,3 +209,7 @@ __marimo__/
 
 # Node.js modules
 node_modules/
+out/
+
+# VS Code extension package artifacts
+extension-package/
