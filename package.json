@@ -10,23 +10,13 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartup",
     "onView:terminai.terminalView",
     "onCommand:terminai.openTerminal"
   ],
   "main": "./out/extension.js",
   "contributes": {
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "terminai-terminal",
-          "title": "TerminAI Terminal",
-          "icon": "media/icon.png"
-        }
-      ]
-    },
     "views": {
-      "terminai-terminal": [
+      "panel": [
         {
           "id": "terminai.terminalView",
           "name": "TerminAI Terminal",

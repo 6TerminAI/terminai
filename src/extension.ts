@@ -13,10 +13,11 @@ export function activate(context: vscode.ExtensionContext) {
         provider
     );
 
-    // Register commands
-    const openTerminalCommand = vscode.commands.registerCommand('terminai.openTerminal', async () => {
-        // Display Webview view
-        await vscode.commands.executeCommand('workbench.view.extension.terminai-terminal');
+    // Register commands
+    const openTerminalCommand = vscode.commands.registerCommand('terminai.openTerminal', async () => {
+        // Display Webview view - the view will appear in the panel area alongside other views
+        // Users can access it through the panel dropdown
+        console.log('Opening TerminAI Terminal in panel');
     });
 
     context.subscriptions.push(viewRegistration, openTerminalCommand, provider);
