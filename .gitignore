@@ -213,5 +213,4 @@ out/
 
 # VS Code extension package artifacts
 extension-package/
-\"terminai-*.vsix\" 
-\"terminai-*.vsix\" 
+terminai-*.vsix 
