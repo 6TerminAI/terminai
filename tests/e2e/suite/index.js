@@ -1,6 +1,7 @@
 const { testTerminAIExtension } = require('./extension.test');
 const { testCommandRegistration } = require('./verifyCommands.test');
 const { testCompleteExtension } = require('./completeExtension.test');
+const { testSidebarIcon } = require('./sidebarIcon.test');
 
 async function run() {
   // This is a simplified test runner that just runs our verification
@@ -15,6 +16,9 @@ async function run() {
     
     // Run the complete extension functionality test
     await testCompleteExtension();
+    
+    // Run the sidebar icon verification
+    await testSidebarIcon();
     
     console.log('✅ All end-to-end tests passed!');
     return Promise.resolve();

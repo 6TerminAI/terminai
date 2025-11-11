@@ -19,7 +19,7 @@ async function main() {
 
     // 4. Install your extension (.vsix file)
     const projectRoot = path.resolve(__dirname, '..', '..');
-    const vsixPath = path.join(projectRoot, 'terminai-0.0.1.vsix');
+    const vsixPath = path.join(projectRoot, 'terminai-0.1.0.vsix');
     
     console.log(`Installing extension from ${vsixPath}...`);
     execSync(`${cliPath} --install-extension "${vsixPath}"`, {

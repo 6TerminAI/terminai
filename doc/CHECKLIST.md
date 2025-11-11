@@ -167,3 +167,12 @@ This checklist is based on the TerminAI project structure and requirements for V
 - [x] Verify proper error messages when Podman or browser is not available
 - [x] Test command prompt updates to reflect current AI service context
 - [x] When writing terminal commands, use Git Bash syntax and paths (not PowerShell) for cross-platform compatibility
+
+## Build and Packaging Optimization
+- [x] Implement optimized build script with size reduction
+- [x] Remove unnecessary files (source maps, test files) from package
+- [x] Minify JavaScript files for smaller package size
+- [x] Verify .vscodeignore properly excludes development files
+- [x] Use build:optimized script for production packages
+- [x] Monitor package size during build process
+- [x] Test functionality after size optimizations

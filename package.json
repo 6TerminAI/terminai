@@ -11,15 +11,25 @@
   ],
   "activationEvents": [
     "onView:terminai.terminalView",
-    "onCommand:terminai.openTerminal"
+    "onCommand:terminai.openTerminal",
+    "onView:terminai"
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "terminai",
+          "title": "TerminAI",
+          "icon": "media/terminal-ai-icon.svg"
+        }
+      ]
+    },
     "views": {
-      "panel": [
+      "terminai": [
         {
           "id": "terminai.terminalView",
-          "name": "Terminai",
+          "name": "TerminAI",
           "type": "webview"
         }
       ]
@@ -72,7 +82,8 @@
     "test:install": "node ./tests/installation-verification.js",
     "test:automated": "node ./tests/automated-integration-tests.js",
     "package": "vsce package",
-    "build": "npm run compile && npm run package"
+    "build": "npm run compile && npm run package",
+    "build:optimized": "node ./scripts/build-optimized.js"
   },
   "dependencies": {
     "@vscode/vsce": "^3.7.0",

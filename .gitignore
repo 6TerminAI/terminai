@@ -212,5 +212,9 @@ node_modules/
 out/
 
 # VS Code extension package artifacts
+
 extension-package/
+
 terminai-*.vsix 
+
+learning-primer-buddy/
