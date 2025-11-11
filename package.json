@@ -19,7 +19,7 @@
       "panel": [
         {
           "id": "terminai.terminalView",
-          "name": "TerminAI Terminal",
+          "name": "Terminai",
           "type": "webview"
         }
       ]
@@ -27,7 +27,7 @@
     "commands": [
       {
         "command": "terminai.openTerminal",
-        "title": "TerminAI: Open AI Terminal",
+        "title": "Terminai: Open AI Terminal",
         "category": "TerminAI"
       }
     ],
