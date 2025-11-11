@@ -1,27 +1,27 @@
 # TerminAI 
 
-Q: 有没有部署在低端个人电脑通过 Playwright MCP 控制浏览器自动填充问题，收集回复，如自动搜索产品然后获取产品列表？
+Q: Is there a deployment on low-end personal computers that uses Playwright MCP to control browser automation, automatically fill in questions, and collect responses, such as automatically searching for products and then getting product lists?
 
-A: 根据你的需求，在低端个人电脑上通过 Playwright MCP 实现浏览器自动化，完成搜索产品和获取列表的任务是完全可行的。其核心在于通过模型上下文协议（MCP），让你能用自然语言指挥AI操作浏览器，而无需编写复杂的代码。
+A: According to your needs, it is completely feasible to implement browser automation through Playwright MCP on low-end personal computers to complete the tasks of searching for products and getting lists. The core is that through the Model Context Protocol (MCP), you can use natural language to direct AI to operate the browser without writing complex code.
 
-下面这个表格整理了它能帮你实现的核心自动化能力。
+The following table organizes the core automation capabilities it can help you achieve.
 
-| **能力类别** | **具体功能** | **在电商搜索与数据收集中的应用** |
+| **Capability Category** | **Specific Function** | **Application in E-commerce Search and Data Collection** |
 | :--- | :--- | :--- |
-| **🤖 浏览器自动化** | 页面导航、点击元素、填写表单 | 自动打开电商网站、在搜索框输入产品关键词、点击搜索按钮。 |
-| **📊 数据收集** | 提取页面文本、获取可见内容 | 从搜索结果页面抓取商品名称、价格、评分等列表信息。 |
-| **💾 结果处理** | 执行JavaScript、截图 | 对结果页面进行截图存档，或将提取的数据整理成结构化格式（如表格）。 |
+| **🤖 Browser Automation** | Page navigation, clicking elements, filling forms | Automatically open e-commerce websites, input product keywords in search box, click search button. |
+| **📊 Data Collection** | Extract page text, get visible content | Scrape product names, prices, ratings and other list information from search result pages. |
+| **💾 Result Processing** | Execute JavaScript, take screenshots | Take screenshots of result pages for archiving, or organize extracted data into structured formats (such as tables). |
 
-### 🛠️ 如何部署与配置
+### 🛠️ How to Deploy and Configure
 
-由于Playwright MCP设计上就比较轻量，且可以通过无头模式（不显示浏览器界面）运行，这对低端电脑非常友好。
+Since Playwright MCP is designed to be lightweight and can run in headless mode (without displaying the browser interface), it's very friendly to low-end PCs.
 
-1.  **环境准备**
-    确保你的电脑上安装了 **Node.js**（版本18或更高）。你可以从官网下载安装包。
+1.  **Environment Preparation**
+    Make sure you have **Node.js** (version 18 or higher) installed on your computer. You can download the installer from the official website.
 
-2.  **安装Playwright MCP Server**
-    根据你想使用的AI助手，选择以下任一方式配置。目前最推荐的方法是使用 `npx` 直接运行，无需克隆代码库。
-    - **对于Claude Desktop**：找到其配置目录（Windows通常在 `%APPDATA%\Claude\`，macOS在 `~/Library/Application Support/Claude/`），创建或编辑 `claude_desktop_config.json` 文件，并填入以下配置：
+2.  **Install Playwright MCP Server**
+    Choose one of the following configuration methods based on the AI assistant you want to use. The most recommended method currently is to run directly with `npx` without cloning the codebase.
+    - **For Claude Desktop**: Find its configuration directory (usually `%APPDATA%\Claude\` on Windows, `~/Library/Application Support/Claude/` on macOS), create or edit the `claude_desktop_config.json` file, and fill in the following configuration:
       ```json
       {
         "mcpServers": {
@@ -32,34 +32,34 @@ A: 根据你的需求，在低端个人电脑上通过 Playwright MCP 实现浏�
         }
       }
       ```
-    - **对于Cursor IDE**：在设置中找到MCP选项，添加新的服务器。命令为 `npx`，参数为 `["-y", "playwright-mcp"]`。
+    - **For Cursor IDE**: Find MCP options in settings and add a new server. The command is `npx`, with parameters `["-y", "playwright-mcp"]`.
 
-3.  **验证安装**
-    重启你的AI助手（如Claude Desktop），然后尝试问它：“**你现在有哪些可用的工具？**”如果配置成功，它会回复一系列可用的Playwright工具，如 `navigate`、`click`、`fill`、`extract_text` 等。
+3.  **Verify Installation**
+    Restart your AI assistant (like Claude Desktop), then try asking it: "**What tools do you have available?**" If configured successfully, it will reply with a series of available Playwright tools like `navigate`, `click`, `fill`, `extract_text`, etc.
 
-### 💡 低端电脑优化技巧
+### 💡 Low-end Computer Optimization Tips
 
-为了让运行更流畅，你可以采取以下措施：
+To make the operation smoother, you can take the following measures:
 
-- **使用无头模式**：在配置中设置环境变量 `"BROWSER_HEADLESS"` 为 `true`，让浏览器在后台运行，不显示图形界面，可以显著节省资源。
-- **关闭其他程序**：运行自动化任务时，尽量关闭不必要的应用程序，为Playwright腾出更多内存和CPU。
-- **精准提取**：在让AI提取数据时，指令要尽量明确，例如“提取前5个商品名称和价格”，避免处理过多数据导致卡顿。
+- **Use Headless Mode**: Set the environment variable `"BROWSER_HEADLESS"` to `true` in the configuration, let the browser run in the background without displaying the graphical interface, which can significantly save resources.
+- **Close Other Programs**: When running automation tasks, try to close unnecessary applications to free up more memory and CPU for Playwright.
+- **Precise Extraction**: When letting AI extract data, make the instructions as clear as possible, for example "Extract the first 5 product names and prices", avoid processing too much data which can cause stuttering.
 
-### 🚀 尝试一个自动化任务
+### 🚀 Try an Automation Task
 
-配置成功后，你可以直接向AI助手发出指令。例如，你可以尝试这样说：
+Once configured successfully, you can directly give instructions to the AI assistant. For example, you can try saying:
 
 > “请使用Playwright打开百度首页 (https://www.baidu.com)，在搜索框中输入‘智能手机’，点击搜索按钮，然后获取结果页面中前5条结果的标题和链接。” 
 
-AI会自动调用相应的工具来完成整个流程。对于电商网站，思路完全相同：导航到网站、搜索产品、提取产品列表信息。
+The AI will automatically call the appropriate tools to complete the entire process. For e-commerce websites, the approach is exactly the same: navigate to the website, search for products, and extract product list information.
 
-希望这份指南能帮助你在低端电脑上顺利部署并解锁浏览器自动化的能力。如果你在配置过程中遇到具体问题，比如某个步骤出错了，可以告诉我你使用的AI助手类型和遇到的问题细节，我会尽力帮你分析。
+We hope this guide can help you successfully deploy and unlock browser automation capabilities on low-end computers. If you encounter specific issues during configuration, such as an error in a certain step, you can tell me the type of AI assistant you're using and the details of the problem you're facing, and I will try my best to help you analyze it.
 
-Q: 我要通过Playwright MCP访问不同ai网页版，如qwen、豆包，在我的程序里输入问题通过mcp发给我主机上安装的浏览器，因为我可能要预先登录qwen、豆包网站。
+Q: I want to access different AI web versions like Qwen and Doubao through Playwright MCP. I can input questions in my program and send them to the browser installed on my host machine through MCP, because I might need to pre-login to Qwen and Doubao websites.
 
-A: 完全可以在您的低端个人电脑上，通过 Playwright MCP 来实现自动控制已登录的浏览器访问各类AI网页。其核心思路是：**先通过技术手段让浏览器保持登录状态，然后让 Playwright MCP 去接管这个已经登录好的浏览器实例**。这样您的程序就能直接发送指令，无需处理复杂的登录流程了。
+A: It is completely feasible to automatically control a logged-in browser to access various AI web pages through Playwright MCP on your low-end personal computer. The core idea is: **first use technical means to keep the browser in a logged-in state, then let Playwright MCP take over this already logged-in browser instance**. This way, your program can directly send instructions without needing to handle complex login processes.
 
-下面我为您梳理了两种经过验证的可行方案。
+Below I've organized two verified feasible solutions for you.
 
 ### 🤔 两种核心方案对比
 

@@ -1,146 +1,130 @@
-# Coding Checklist
+# TerminAI Extension Coding Checklist
 
-This checklist is based on the hybrid HTML template approach described in html_template.md for VS Code extension development.
+This checklist is based on the TerminAI project structure and requirements for VS Code extension development.
 
 ## Project Structure
 
 - [x] Follow the recommended project structure:
   ```
-  learning-buddy/
+  terminai/
   ├── src/
   │   ├── extension.ts          # Main extension entry point
-  │   ├── providers/
-  │   │   └── ChatViewProvider.ts
-  │   └── templates/           # Template modules
-  │       ├── index.ts         # Main template loader
-  │       ├── base.ts          # Base HTML structure
-  │       └── components.ts    # Reusable UI components
+  │   ├── terminAIManager.ts    # Webview terminal manager
+  │   ├── aiService.ts          # AI service integration
+  │   ├── configurationManager.ts # Configuration management
+  │   └── podmanManager.ts      # Podman container management
+  ├── container/               # MCP server container files
+  │   ├── mcp_server/
+  │   │   └── main.js          # Playwright MCP server implementation
+  │   ├── Podmanfile           # Podman container definition
+  │   └── package.json         # MCP server dependencies
   ├── media/                   # Static assets
-  │   ├── chat-template.html   # Main HTML template
-  │   └── styles/
-  │       └── chat.css
+  │   └── icon.png
   └── package.json
   ```
 - [x] File and folder names should reflect business intention and be descriptive
 - [x] Related code files should be placed under the same folder
 
-## Template Engine Implementation
+## Webview Terminal Implementation
 
-- [x] Create a singleton TemplateEngine class
-- [x] Implement `renderMainTemplate()` method that:
-  - [x] Reads external HTML template files
-  - [x] Replaces placeholders with dynamic content
-  - [x] Uses `vscode.workspace.fs.readFile()` for file reading
-  - [x] Properly handles webview resource URIs with `webview.asWebviewUri()`
-- [x] Create reusable component functions for UI elements
-- [x] Use template literals for dynamic components in code
+- [x] Implement `TerminAIWebviewProvider` class that implements `vscode.WebviewViewProvider`
+- [x] Implement `resolveWebviewView()` method that:
+  - [x] Sets up webview options with `enableScripts: true` and `retainContextWhenHidden: true`
+  - [x] Generates HTML content with terminal interface
+  - [x] Sets up message handling with `webview.onDidReceiveMessage()`
+- [x] Create terminal UI with command prompt showing current AI service name followed by '>'
+- [x] Implement command history with up/down arrow navigation
+- [x] Support real-time output display for long-running operations
 
 ## HTML Template Structure
 
-- [x] Keep main HTML structure in external `.html` files in the `media/` directory
-- [x] Use placeholder syntax `{{variable_name}}` for dynamic content
-- [x] Separate static structure from dynamic content
-- [x] Include proper meta tags:
+- [x] Keep main HTML structure in the `getWebviewContent()` method
+- [x] Use proper meta tags:
   ```html
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   ```
+- [x] Include terminal styling with proper VS Code theme variables
+- [x] Implement input handling for terminal commands
 
-## Component Templates
+## Command System Implementation
 
-- [x] Create separate component functions for reusable UI elements
-- [x] Use template literals for component generation
-- [x] Pass data as parameters to component functions
-- [x] Return HTML strings from component functions
-- [x] Example components:
-  - [x] Contact lists
-  - [x] Message bubbles
-  - [x] Input areas
-  - [x] Welcome messages
+- [x] Implement `cd <ai_service>` command for switching AI services
+- [x] Implement `ls` command for listing supported AI services
+- [x] Implement `qi <question>` command for asking questions to current AI
+- [x] Implement `status` command for showing system status
+- [x] Implement `help` command for showing available commands
+- [x] Implement proper command validation and error handling
 
-## Webview Provider Implementation
+## Podman Container Management
 
-- [x] Implement `resolveWebviewView()` method properly
-- [x] Set webview options:
-  ```typescript
-  webviewView.webview.options = {
-      enableScripts: true,
-      localResourceRoots: [
-          vscode.Uri.joinPath(this._extensionUri, 'media')
-      ]
-  };
-  ```
-- [x] Use the template engine to generate HTML content
-- [x] Set up message handling with `webview.onDidReceiveMessage()`
-- [x] Implement data fetching methods for dynamic content
+- [x] Implement `PodmanManager` class for container operations
+- [x] Implement `startContainer()` method to run MCP server in Podman
+- [x] Implement `startBrowser()` method to launch browser with debug port
+- [x] Implement status checking methods for container and browser
+- [x] Handle container lifecycle (start, stop, restart)
 
-## Placeholder Replacement
+## MCP Server Integration
 
-- [x] Use consistent placeholder syntax `{{variable_name}}`
-- [x] Replace placeholders with actual values before rendering
-- [x] Handle missing data gracefully
-- [x] Escape HTML content when necessary
+- [x] Create Playwright MCP server in container/mcp_server/main.js
+- [x] Implement connection to host browser via Chrome DevTools Protocol (CDP)
+- [x] Implement API endpoints for switching AI services and asking questions
+- [x] Handle browser automation requests from extension
+- [x] Translate MCP commands into Playwright automation scripts
 
 ## JavaScript Implementation
 
-- [x] Keep core application logic in external JavaScript
-- [x] Use event delegation for dynamic elements
-- [x] Implement proper error handling
+- [x] Keep core application logic in external JavaScript within webview
+- [x] Use event delegation for terminal input and display
+- [x] Implement proper error handling for command execution
 - [x] Add console logging for debugging
-- [x] Use proper DOM ready checks:
-  ```javascript
-  if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initializeComponents);
-  } else {
-      setTimeout(initializeComponents, 100);
-  }
-  ```
+- [x] Implement command history navigation
+- [x] Handle terminal scrolling for large outputs
 
 ## CSS Styling
 
-- [x] Keep CSS in separate files in the `media/styles/` directory
-- [x] Link CSS files properly in HTML templates
 - [x] Use VS Code CSS variables for consistency:
   ```css
   --vscode-editor-background
   --vscode-editor-foreground
   --vscode-button-background
   ```
+- [x] Style terminal with monospace font for proper alignment
+- [x] Implement proper color coding for different terminal elements
 
 ## Performance Considerations
 
-- [x] Minimize DOM manipulation
-- [x] Cache template files when possible
-- [x] Use efficient placeholder replacement
-- [x] Avoid unnecessary re-renders
+- [x] Minimize DOM manipulation in terminal display
+- [x] Efficient command history management
+- [x] Proper resource cleanup when extension is deactivated
+- [x] Use efficient string operations for terminal output
 
 ## Type Safety
 
 - [x] Use TypeScript interfaces for data structures
-- [x] Define proper types for template data
-- [x] Use type checking for component parameters
+- [x] Define proper types for terminal messages and commands
+- [x] Use type checking for all method parameters
 - [x] Implement proper error handling for missing data
 
 ## Maintainability
 
-- [x] Keep static HTML in files, dynamic components in code
-- [x] Use clear, descriptive names for components
-- [x] Document complex template logic
-- [x] Separate concerns between structure, style, and behavior
+- [x] Separate concerns between UI (webview), business logic (manager), and external services (MCP server)
+- [x] Use clear, descriptive names for components and methods
+- [x] Document complex terminal and container logic
+- [x] Keep terminal UI code separate from Podman management code
 
 ## Testing Requirements
 
 - [x] Unit tests for every feature and update before build & package
 - [x] Test webview functionality in isolation
 - [x] Verify all UI components render correctly
-- [x] Test all user interactions (clicks, drags, inputs)
+- [x] Test all terminal commands (cd, ls, qi, status, help)
 - [x] Verify message passing between extension and webview
 - [x] Test with different screen sizes and VS Code themes
-- [x] Test iframe loading for all supported websites
-- [x] Verify splitter/resize functionality works properly
-- [x] Test hover functionality (title attributes, tooltips)
+- [x] Verify proper error handling for container management
+- [x] Test browser connection and automation
 - [x] Validate Content Security Policy doesn't block legitimate content
-- [x] Test error handling for network issues
+- [x] Test error handling for network issues between extension and MCP server
 - [x] Verify all configuration options work as expected
 - [x] Run automated test suite with `npm test` or equivalent
 - [x] Test cross-platform compatibility (Windows, macOS, Linux)
@@ -151,23 +135,35 @@ This checklist is based on the hybrid HTML template approach described in html_t
   - [x] Package extension with `vsce package` or `npm run package`
   - [x] Install extension using `code --install-extension <extension-file>.vsix`
   - [x] Verify extension functionality in VS Code
+  - [x] Test terminal commands work properly
+  - [x] Verify Podman container starts correctly
   - [x] Uninstall extension using `code --uninstall-extension <publisher>.<extension-name>`
 - [x] Run automated integration tests to verify extension components:
-  - [x] Verify all course data is present in source code
+  - [x] Verify all terminal commands work as expected
   - [x] Validate package.json configuration
   - [x] Manually verify UI elements in VS Code as documented
-  - [x] Run end-to-end tests with `npm run test:e2e` to verify real VS Code integration
+  - [x] Test Podman container and browser integration
+  - [x] Verify AI service switching functionality
+  - [x] Test question answering workflow
 - [x] Perform real behavior verification by installing and testing the extension in a clean VS Code environment using the `code` command:
   - [x] Package the extension using `npm run package`
-  - [x] Install the extension using `code --install-extension learning-primer-buddy-0.0.1.vsix`
+  - [x] Install the extension using `code --install-extension terminai-0.1.0.vsix`
   - [x] Launch VS Code and verify all extension features work correctly in a real environment
-  - [x] Test the My Courses view displays exactly 10 courses with correct titles and progress
-  - [x] Verify the Podman Environment section appears correctly
+  - [x] Test the TerminAI terminal view appears correctly
+  - [x] Verify the cd command switches AI services correctly
+  - [x] Test the ls command lists AI services correctly
+  - [x] Verify the qi command asks questions and displays responses
   - [x] Test all extension commands and UI interactions
-  - [x] Uninstall the extension using `code --uninstall-extension learning-primer-buddy-dev.learning-primer-buddy`
+  - [x] Uninstall the extension using `code --uninstall-extension terminai`
   - [x] Confirm the extension is completely removed and VS Code returns to its original state
-  - [x] Run automated end-to-end tests using `npm run test:e2e` to verify complete extension lifecycle
+  - [x] Run automated end-to-end tests using `npm run test` to verify complete extension lifecycle
 
 ## Other Testing Requirements
 - [x] Test with extension disabled/enabled scenarios
+- [x] Verify proper cleanup when extension is deactivated
+- [x] Test terminal command history functionality
+- [x] Verify proper handling of long-running AI requests
+- [x] Test switching between different AI services (deepseek, qwen, doubao, chatgpt)
+- [x] Verify proper error messages when Podman or browser is not available
+- [x] Test command prompt updates to reflect current AI service context
 - [x] When writing terminal commands, use Git Bash syntax and paths (not PowerShell) for cross-platform compatibility

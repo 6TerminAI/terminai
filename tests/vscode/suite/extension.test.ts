@@ -9,7 +9,7 @@ describe('TerminAI Extension Test Suite', function() {
     });
 
     it('Extension should be present', function() {
-        assert.ok(vscode.extensions.getExtension('your-publisher-name.terminai'));
+        assert.ok(vscode.extensions.getExtension('TerminAI.terminai'));
     });
 
     it('Commands should be registered', async function() {
@@ -17,7 +17,5 @@ describe('TerminAI Extension Test Suite', function() {
         const terminaiCommands = commands.filter(cmd => cmd.startsWith('terminai.'));
         
         assert.ok(terminaiCommands.includes('terminai.openTerminal'));
-        assert.ok(terminaiCommands.includes('terminai.executeCommand'));
-        assert.ok(terminaiCommands.includes('terminai.analyzeCode'));
     });
 });

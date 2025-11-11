@@ -1,5 +1,9 @@
 import * as vscode from 'vscode';
 import { ConfigurationManager } from './configurationManager';
+import * as child_process from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(child_process.exec);
 
 export class AIService {
     constructor(private configManager: ConfigurationManager) {}
@@ -147,5 +151,54 @@ Current code appears to be valid ${language} code. Would you like specific feedb
     public validateConfiguration(): boolean {
         const apiKey = this.configManager.getApiKey();
         return apiKey.length > 0;
+    }
+    
+    /**
+     * Call MCP server to interact with AI websites
+     */
+    public async callMCPCommand(command: string, params: any): Promise<any> {
+        // Use node's http module instead of fetch
+        const http = await import('http');
+        const url = await import('url');
+        
+        return new Promise((resolve, reject) => {
+            const requestUrl = url.parse(`http://localhost:3000/${command}`);
+            const postData = JSON.stringify(params);
+            
+            const options = {
+                hostname: requestUrl.hostname,
+                port: requestUrl.port ? parseInt(requestUrl.port) : 3000,
+                path: requestUrl.path,
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(postData)
+                }
+            };
+            
+            const req = http.request(options, (res) => {
+                let data = '';
+                
+                res.on('data', (chunk) => {
+                    data += chunk;
+                });
+                
+                res.on('end', () => {
+                    try {
+                        const response = JSON.parse(data);
+                        resolve(response);
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            });
+            
+            req.on('error', (error) => {
+                reject(error);
+            });
+            
+            req.write(postData);
+            req.end();
+        });
     }
 }

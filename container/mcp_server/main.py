@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-TerminAI MCP Server 主程序
-基于 FastAPI 的 Web 服务器，提供浏览器自动化功能
+TerminAI MCP Server main program
+Web server based on FastAPI, providing browser automation functionality
 """
 
 import asyncio
@@ -13,33 +13,33 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .browser import BrowserManager
 
-# 配置日志
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("terminai-mcp-server")
 
-# 全局浏览器管理器实例
+# Global browser manager instance
 browser_manager = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期管理"""
+    """Application lifecycle management"""
     global browser_manager
     
-    # 启动时初始化浏览器管理器
+    # Initialize browser manager on startup
     browser_manager = BrowserManager()
     logger.info("MCP Server starting up...")
     
     yield
     
-    # 关闭时清理资源
+    # Clean up resources on shutdown
     if browser_manager:
         await browser_manager.close()
     logger.info("MCP Server shutting down...")
 
-# 创建 FastAPI 应用
+# Create FastAPI application
 app = FastAPI(
     title="TerminAI MCP Server",
     description="MCP Server for browser automation in TerminAI VS Code Extension",
@@ -47,7 +47,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# 配置 CORS
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -58,7 +58,7 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    """根端点"""
+    """Root endpoint"""
     return {
         "service": "TerminAI MCP Server",
         "version": "1.0.0",
@@ -67,7 +67,7 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """健康检查端点"""
+    """Health check endpoint"""
     browser_status = "connected" if browser_manager and browser_manager.is_connected() else "disconnected"
     
     return {
@@ -78,7 +78,7 @@ async def health_check():
 
 @app.post("/init")
 async def init_browser(debug_port: int = 9222):
-    """初始化浏览器连接"""
+    """Initialize browser connection"""
     try:
         await browser_manager.connect(debug_port)
         return {"success": True, "message": "Browser connected successfully"}
@@ -88,7 +88,7 @@ async def init_browser(debug_port: int = 9222):
 
 @app.post("/ask")
 async def ask_question(ai: str, question: str):
-    """向指定 AI 提问"""
+    """Ask question to the specified AI"""
     if not browser_manager or not browser_manager.is_connected():
         raise HTTPException(status_code=400, detail="Browser not connected")
     
@@ -101,7 +101,7 @@ async def ask_question(ai: str, question: str):
 
 @app.get("/ais")
 async def get_supported_ais():
-    """获取支持的 AI 列表"""
+    """Get supported AI list"""
     return {
         "ais": ["deepseek", "qwen", "doubao"],
         "default": "deepseek"
@@ -109,7 +109,7 @@ async def get_supported_ais():
 
 @app.post("/switch")
 async def switch_ai(ai: str):
-    """切换到指定的 AI"""
+    """Switch to the specified AI"""
     if not browser_manager or not browser_manager.is_connected():
         raise HTTPException(status_code=400, detail="Browser not connected")
     
@@ -121,7 +121,7 @@ async def switch_ai(ai: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 def main():
-    """主函数"""
+    """Main function"""
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=3000)
 

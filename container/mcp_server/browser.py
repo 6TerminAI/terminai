@@ -1,6 +1,6 @@
 """
-浏览器管理模块
-处理与浏览器的连接和自动化操作
+Browser management module
+Handles connection to browser and automation operations
 """
 
 import asyncio
@@ -12,7 +12,7 @@ from playwright.async_api import async_playwright, Browser, Page
 logger = logging.getLogger("terminai-mcp-browser")
 
 class BrowserManager:
-    """浏览器管理器"""
+    """Browser manager"""
     
     def __init__(self):
         self.browser: Optional[Browser] = None
@@ -25,18 +25,18 @@ class BrowserManager:
         }
     
     async def connect(self, debug_port: int = 9222):
-        """连接到已运行的浏览器实例"""
+        """Connect to the running browser instance"""
         try:
             # Use async context manager for playwright
             async with async_playwright() as playwright:
                 self.playwright = playwright
                 
-                # 连接到已运行的浏览器
+                # Connect to the running browser
                 self.browser = await self.playwright.chromium.connect_over_cdp(
                     f"http://localhost:{debug_port}"
                 )
                 
-                # 获取或创建页面
+                # Get or create page
                 contexts = self.browser.contexts
                 if contexts and contexts[0].pages:
                     self.page = contexts[0].pages[0]
@@ -51,11 +51,11 @@ class BrowserManager:
             raise
     
     async def ask_ai(self, ai: str, question: str) -> str:
-        """向指定 AI 提问并获取回答"""
+        """Ask the specified AI and get the response"""
         if not self.page:
             raise RuntimeError("Browser page not available")
         
-        # 导航到对应的 AI 网站
+        # Navigate to the corresponding AI website
         url = self.ai_urls.get(ai)
         if not url:
             raise ValueError(f"Unsupported AI: {ai}")
@@ -63,10 +63,10 @@ class BrowserManager:
         await self.page.goto(url)
         await self.page.wait_for_timeout(3000)
         
-        # 这里需要根据具体网站调整选择器
-        # 以下是通用示例，实际使用时需要针对每个网站调整
+        # The selectors need to be adjusted according to specific websites
+        # The following are general examples, actual use needs to be adjusted for each website
         
-        # 查找输入框并输入问题
+        # Find input box and input question
         input_selectors = [
             "textarea",
             "input[type='text']",
@@ -79,7 +79,7 @@ class BrowserManager:
         for selector in input_selectors:
             elements = await self.page.query_selector_all(selector)
             if elements:
-                # 选择最后一个（通常是最新的输入框）
+                # Select the last one (usually the latest input box)
                 input_element = elements[-1]
                 break
         
@@ -89,10 +89,10 @@ class BrowserManager:
         await input_element.fill(question)
         await self.page.wait_for_timeout(1000)
         
-        # 查找并点击发送按钮
+        # Find and click the send button
         button_selectors = [
             "button[type='submit']",
-            "button:has-text('发送')",
+            "button:has-text('发送')",  # 'Send' button in Chinese
             "button:has-text('Send')",
             ".send-button",
             "[data-testid='send-button']"
@@ -104,10 +104,10 @@ class BrowserManager:
                 await button.click()
                 break
         
-        # 等待回答生成（这里需要根据实际情况调整等待时间和选择器）
+        # Wait for response generation (need to adjust wait time and selectors according to actual situation)
         await self.page.wait_for_timeout(10000)
         
-        # 提取回答内容
+        # Extract response content
         answer_selectors = [
             ".message:last-child",
             ".response:last-child",
@@ -125,7 +125,7 @@ class BrowserManager:
         return "No answer found - please check the website structure and selectors"
     
     async def switch_ai(self, ai: str):
-        """切换到指定的 AI 网站"""
+        """Switch to the specified AI website"""
         if not self.page:
             raise RuntimeError("Browser page not available")
         
@@ -137,11 +137,11 @@ class BrowserManager:
         await self.page.wait_for_timeout(2000)
     
     def is_connected(self) -> bool:
-        """检查浏览器是否已连接"""
+        """Check if browser is connected"""
         return self.browser is not None and self.browser.is_connected()
     
     async def close(self):
-        """关闭浏览器连接"""
+        """Close browser connection"""
         if self.browser:
             await self.browser.close()
         # playwright is automatically closed by the async context manager
