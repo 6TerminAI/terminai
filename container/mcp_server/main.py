@@ -6,22 +6,36 @@ Web server based on FastAPI, providing browser automation functionality
 
 import asyncio
 import logging
+import os
+import yaml
 from contextlib import asynccontextmanager
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from .browser import BrowserManager
+from .utils import load_ai_urls
+
+# Load configuration
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'config.yaml')
+config = {}
+if os.path.exists(CONFIG_PATH):
+    with open(CONFIG_PATH, 'r') as f:
+        config = yaml.safe_load(f) or {}
 
 # Configure logging
+log_level = config.get('logging', {}).get('level', 'INFO')
+log_format = config.get('logging', {}).get('format', '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=getattr(logging, log_level.upper()),
+    format=log_format
 )
 logger = logging.getLogger("terminai-mcp-server")
 
 # Global browser manager instance
-browser_manager = None
+browser_manager: Optional[BrowserManager] = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -79,6 +93,9 @@ async def health_check():
 @app.post("/init")
 async def init_browser(debug_port: int = 9222):
     """Initialize browser connection"""
+    if not browser_manager:
+        raise HTTPException(status_code=500, detail="Browser manager not initialized")
+    
     try:
         await browser_manager.connect(debug_port)
         return {"success": True, "message": "Browser connected successfully"}
@@ -102,9 +119,14 @@ async def ask_question(ai: str, question: str):
 @app.get("/ais")
 async def get_supported_ais():
     """Get supported AI list"""
+    # Get AI services from utility function
+    ai_urls = load_ai_urls()
+    ai_list = list(ai_urls.keys()) if ai_urls else []
+    default_ai = ai_list[0] if ai_list else "deepseek"
+    
     return {
-        "ais": ["deepseek", "qwen", "doubao"],
-        "default": "deepseek"
+        "ais": ai_list,
+        "default": default_ai
     }
 
 @app.post("/switch")

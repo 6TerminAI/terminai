@@ -1,4 +1,4 @@
-# Using Python official image
+# Minimal Containerfile for TerminAI MCP Server
 FROM python:3.11-slim
 
 # Set environment variables
@@ -6,14 +6,12 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright
 
-# Set domestic PyPI mirror
-RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-RUN pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn
+# Set domestic PyPI mirror early to speed up package installation
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
+    pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn
 
-# Install system dependencies required for Playwright
+# Install system dependencies required for Playwright and application
 RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
     libnss3 \
     libnspr4 \
     libatk1.0-0 \
@@ -37,15 +35,15 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy pyproject.toml and other necessary files
-COPY pyproject.toml .
-COPY mcp_server/ ./mcp_server/
+# Copy application files
+COPY . /app
 
-# Install Python packages (using pyproject.toml)
+# Install Python dependencies from pyproject.toml
+# This will automatically install playwright, fastapi, uvicorn, etc.
 RUN pip install --no-cache-dir .
 
-# Install Playwright browser
-RUN playwright install
+# Install Playwright browsers (note: we don't install browsers in container as per design)
+# Install only Playwright dependencies (not browsers)
 RUN playwright install-deps
 
 # Create non-root user (security best practice)
@@ -60,5 +58,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
 
-# Start MCP server
+# Start MCP server using the entry point defined in pyproject.toml
 CMD ["terminai-mcp-server"]

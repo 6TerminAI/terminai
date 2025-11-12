@@ -202,3 +202,58 @@ Current code appears to be valid ${language} code. Would you like specific feedb
         });
     }
 }
+
+/**
+ * Data interface for AI service information in the extension
+ */
+export interface AIServiceConfig {
+    id: string;
+    name: string;
+    url: string;
+    category: string;
+    enabled: boolean;
+    sequence: number;
+    icon?: string;
+    priority?: number;
+    authenticationRequired?: boolean;
+    capabilities?: string[];
+}
+
+/**
+ * Load AI services from extension configuration
+ */
+export function loadAIServices(): AIServiceConfig[] {
+    // Load from VS Code configuration
+    const config = vscode.workspace.getConfiguration('terminai');
+    const aiServicesConfig = config.get<any[]>('aiServices', []);
+    
+    // Convert configuration to AIServiceConfig objects
+    return aiServicesConfig.map(service => ({
+        id: service.id,
+        name: service.name,
+        url: service.url,
+        category: service.category,
+        enabled: service.enabled !== undefined ? service.enabled : true,
+        sequence: service.sequence || 0,
+        icon: service.icon,
+        priority: service.priority,
+        authenticationRequired: service.authenticationRequired,
+        capabilities: service.capabilities
+    }));
+}
+
+/**
+ * Get AI service by ID from extension configuration
+ */
+export function getAIServiceById(serviceId: string): AIServiceConfig | undefined {
+    const services = loadAIServices();
+    return services.find(service => service.id === serviceId);
+}
+
+/**
+ * Get AI services sorted by sequence number
+ */
+export function getAIServicesSorted(): AIServiceConfig[] {
+    const services = loadAIServices();
+    return services.sort((a, b) => a.sequence - b.sequence);
+}

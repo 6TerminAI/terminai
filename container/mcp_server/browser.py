@@ -7,7 +7,11 @@ import asyncio
 import logging
 from typing import Optional
 
-from playwright.async_api import async_playwright, Browser, Page
+from playwright.async_api import async_playwright, Browser, Page, Playwright
+
+from .utils import load_ai_urls
+from .handler_factory import create_ai_handler
+from .chrome_manager import ChromeManager
 
 logger = logging.getLogger("terminai-mcp-browser")
 
@@ -17,34 +21,39 @@ class BrowserManager:
     def __init__(self):
         self.browser: Optional[Browser] = None
         self.page: Optional[Page] = None
-        self.playwright = None
-        self.ai_urls = {
-            "deepseek": "https://chat.deepseek.com",
-            "qwen": "https://qianwen.aliyun.com/chat", 
-            "doubao": "https://www.doubao.com/chat"
-        }
+        self.playwright: Optional[Playwright] = None
+        self.chrome_manager: Optional[ChromeManager] = None
+        self.ai_urls = load_ai_urls()
+    
+    async def start_chrome_automatically(self, headless: bool = False) -> bool:
+        """Start Chrome automatically with debug port"""
+        try:
+            self.chrome_manager = ChromeManager()
+            return self.chrome_manager.start_chrome(headless)
+        except Exception as e:
+            logger.error(f"Failed to start Chrome automatically: {e}")
+            return False
     
     async def connect(self, debug_port: int = 9222):
         """Connect to the running browser instance"""
         try:
-            # Use async context manager for playwright
-            async with async_playwright() as playwright:
-                self.playwright = playwright
-                
-                # Connect to the running browser
-                self.browser = await self.playwright.chromium.connect_over_cdp(
-                    f"http://localhost:{debug_port}"
-                )
-                
-                # Get or create page
-                contexts = self.browser.contexts
-                if contexts and contexts[0].pages:
-                    self.page = contexts[0].pages[0]
-                else:
-                    self.page = await contexts[0].new_page() if contexts else await self.browser.new_page()
-                
-                logger.info(f"Connected to browser on port {debug_port}")
+            # Initialize playwright without context manager to keep it alive
+            self.playwright = await async_playwright().start()
             
+            # Connect to the running browser
+            self.browser = await self.playwright.chromium.connect_over_cdp(
+                f"http://localhost:{debug_port}"
+            )
+            
+            # Get or create page
+            contexts = self.browser.contexts
+            if contexts and contexts[0].pages:
+                self.page = contexts[0].pages[0]
+            else:
+                self.page = await contexts[0].new_page() if contexts else await self.browser.new_page()
+            
+            logger.info(f"Connected to browser on port {debug_port}")
+        
         except Exception as e:
             logger.error(f"Failed to connect to browser: {e}")
             await self.close()
@@ -55,6 +64,23 @@ class BrowserManager:
         if not self.page:
             raise RuntimeError("Browser page not available")
         
+        # Get AI-specific handler
+        handler = create_ai_handler(ai, self.page)
+        if not handler:
+            # Fallback to generic approach for unsupported AI services
+            return await self._ask_ai_generic(ai, question)
+        
+        # Navigate to the AI service
+        await handler.navigate_to_service()
+        
+        # Ask the question using AI-specific handler
+        return await handler.ask_question(question)
+    
+    async def _ask_ai_generic(self, ai: str, question: str) -> str:
+        """Generic fallback method for unsupported AI services"""
+        if not self.page:
+            raise RuntimeError("Browser page not available")
+            
         # Navigate to the corresponding AI website
         url = self.ai_urls.get(ai)
         if not url:
@@ -138,15 +164,40 @@ class BrowserManager:
     
     def is_connected(self) -> bool:
         """Check if browser is connected"""
-        return self.browser is not None and self.browser.is_connected()
+        if self.browser is None:
+            return False
+        # Handle both sync and async is_connected methods
+        is_connected = self.browser.is_connected
+        # If it's a coroutine, we can't properly check it in a sync method
+        # In this case, we assume it's connected if we have a browser instance
+        import inspect
+        if inspect.iscoroutinefunction(is_connected) or inspect.iscoroutine(is_connected):
+            return True
+        elif callable(is_connected):
+            return is_connected()
+        else:
+            return is_connected
     
     async def close(self):
         """Close browser connection"""
         if self.browser:
-            await self.browser.close()
-        # playwright is automatically closed by the async context manager
+            try:
+                await self.browser.close()
+            except Exception as e:
+                logger.warning(f"Error closing browser: {e}")
+        
+        if self.playwright:
+            try:
+                await self.playwright.stop()
+            except Exception as e:
+                logger.warning(f"Error stopping playwright: {e}")
+        
+        # Stop Chrome if we started it
+        if self.chrome_manager:
+            self.chrome_manager.stop_chrome()
         
         self.browser = None
         self.page = None
         self.playwright = None
+        self.chrome_manager = None
         logger.info("Browser connection closed")

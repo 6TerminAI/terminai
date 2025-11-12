@@ -15,12 +15,13 @@ MCP (Model Context Protocol) Server container for TerminAI VS Code extension, pr
 
 ```
 container/
-├── Podmanfile                 # Podman container build file
+├── Containerfile             # Podman/Docker container build file
+├── config.yaml               # MCP server configuration
 ├── pyproject.toml            # Python project configuration and dependencies
 └── mcp_server/               # MCP server source code
-    ├── __init__.py
-    ├── main.py               # FastAPI main application
-    └── browser.py            # Browser management logic
+   ├── __init__.py
+   ├── main.py               # FastAPI main application
+   └── browser.py            # Browser management logic
 ```
 
 ## 🚀 Quick Start
@@ -38,7 +39,7 @@ container/
 cd container
 
 # Build image
-podman build -t terminai-mcp-server -f Podmanfile .
+podman build -t terminai-mcp-server -f Containerfile .
 ```
 
 ### Run Container
@@ -140,6 +141,15 @@ curl http://localhost:3000/health
 |----------|---------|-------------|
 | `PYTHONUNBUFFERED` | 1 | Disable Python output buffering |
 | `PLAYWRIGHT_DOWNLOAD_HOST` | https://npmmirror.com/mirrors/playwright | Playwright China mirror |
+
+### Configuration File
+
+The MCP server uses a YAML configuration file (`config.yaml`) for its settings:
+
+- **Server settings**: Host, port, and debug mode
+- **Browser settings**: Debug port, timeouts for operations
+- **AI services**: References the main extension configuration
+- **Logging**: Log level and format
 
 ### Port Configuration
 

@@ -122,7 +122,14 @@ class TestAPIEndpoints:
         data = response.json()
         assert "ais" in data
         assert "default" in data
-        assert data["ais"] == ["deepseek", "qwen", "doubao"]
+        # Check that all 18 AI services are included
+        expected_ais = [
+            "deepseek", "doubao", "yuanbao", "qwen", "ernie", "kimi",
+            "tongyi-wanxiang", "wenxin-yiyan", "chatgpt", "claude", "gemini",
+            "copilot", "perplexity", "grok", "pi", "quark", "huggingchat", "leonardo-ai"
+        ]
+        for ai in expected_ais:
+            assert ai in data["ais"], f"AI service {ai} not found in supported AIs"
         assert data["default"] == "deepseek"
     
     def test_switch_ai_success(self, test_client):

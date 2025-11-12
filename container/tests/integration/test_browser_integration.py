@@ -29,7 +29,14 @@ class TestBrowserIntegration:
         mock_browser.is_connected.return_value = True
         
         with patch('mcp_server.browser.async_playwright') as mock_async_playwright:
-            mock_async_playwright.return_value.__aenter__.return_value = mock_playwright
+            # Mock the async context manager for async_playwright()
+            mock_context_manager = AsyncMock()
+            mock_context_manager.__aenter__ = AsyncMock(return_value=mock_playwright)
+            mock_context_manager.__aexit__ = AsyncMock(return_value=None)
+            mock_async_playwright.return_value = mock_context_manager
+            
+            # Mock the start method to return the playwright instance
+            mock_playwright.start = AsyncMock(return_value=mock_playwright)
             
             # Test connection
             await manager.connect(debug_port=9222)
@@ -39,9 +46,13 @@ class TestBrowserIntegration:
             assert manager.browser == mock_browser
             assert manager.page == mock_page
             
-            # Test AI switching
-            await manager.switch_ai("qwen")
-            mock_page.goto.assert_called_once_with("https://qianwen.aliyun.com/chat")
+            # Test AI switching for a few representative services
+            test_ais = ["qwen", "chatgpt", "claude"]
+            for ai in test_ais:
+                await manager.switch_ai(ai)
+                expected_url = manager.ai_urls[ai]
+                mock_page.goto.assert_called_with(expected_url)
+                mock_page.goto.reset_mock()
             
             # Test asking question
             mock_input = AsyncMock()
@@ -79,12 +90,19 @@ class TestBrowserIntegration:
         mock_context.pages = [mock_page]
         
         with patch('mcp_server.browser.async_playwright') as mock_async_playwright:
-            mock_async_playwright.return_value.__aenter__.return_value = mock_playwright
+            # Mock the async context manager for async_playwright()
+            mock_context_manager = AsyncMock()
+            mock_context_manager.__aenter__ = AsyncMock(return_value=mock_playwright)
+            mock_context_manager.__aexit__ = AsyncMock(return_value=None)
+            mock_async_playwright.return_value = mock_context_manager
+            
+            # Mock the start method to return the playwright instance
+            mock_playwright.start = AsyncMock(return_value=mock_playwright)
             
             await manager.connect(debug_port=9222)
             
             # Test switching through all supported AIs
-            for ai in ["deepseek", "qwen", "doubao"]:
+            for ai in ["deepseek", "qwen", "doubao", "chatgpt", "claude"]:
                 await manager.switch_ai(ai)
                 
                 # Verify correct URL was called
@@ -102,7 +120,11 @@ class TestBrowserIntegration:
         
         # Test connection failure
         with patch('mcp_server.browser.async_playwright') as mock_async_playwright:
-            mock_async_playwright.return_value.__aenter__.side_effect = Exception("Network error")
+            # Mock the async context manager for async_playwright()
+            mock_context_manager = AsyncMock()
+            mock_context_manager.__aenter__ = AsyncMock(side_effect=Exception("Network error"))
+            mock_context_manager.__aexit__ = AsyncMock(return_value=None)
+            mock_async_playwright.return_value = mock_context_manager
             
             with pytest.raises(Exception, match="Network error"):
                 await manager.connect(debug_port=9222)
@@ -147,7 +169,14 @@ class TestBrowserIntegration:
         mock_context1.pages = [mock_page1]
         
         with patch('mcp_server.browser.async_playwright') as mock_async_playwright:
-            mock_async_playwright.return_value.__aenter__.return_value = mock_playwright1
+            # Mock the async context manager for async_playwright()
+            mock_context_manager = AsyncMock()
+            mock_context_manager.__aenter__ = AsyncMock(return_value=mock_playwright1)
+            mock_context_manager.__aexit__ = AsyncMock(return_value=None)
+            mock_async_playwright.return_value = mock_context_manager
+            
+            # Mock the start method to return the playwright instance
+            mock_playwright1.start = AsyncMock(return_value=mock_playwright1)
             
             await manager.connect(debug_port=9222)
             
@@ -164,7 +193,11 @@ class TestBrowserIntegration:
             mock_browser2.contexts = [mock_context2]
             mock_context2.pages = [mock_page2]
             
-            mock_async_playwright.return_value.__aenter__.return_value = mock_playwright2
+            # Mock the async context manager for async_playwright()
+            mock_context_manager.__aenter__ = AsyncMock(return_value=mock_playwright2)
+            
+            # Mock the start method to return the playwright instance
+            mock_playwright2.start = AsyncMock(return_value=mock_playwright2)
             
             await manager.connect(debug_port=9333)
             
@@ -190,7 +223,14 @@ class TestBrowserIntegration:
         mock_context.pages = [mock_page]
         
         with patch('mcp_server.browser.async_playwright') as mock_async_playwright:
-            mock_async_playwright.return_value.__aenter__.return_value = mock_playwright
+            # Mock the async context manager for async_playwright()
+            mock_context_manager = AsyncMock()
+            mock_context_manager.__aenter__ = AsyncMock(return_value=mock_playwright)
+            mock_context_manager.__aexit__ = AsyncMock(return_value=None)
+            mock_async_playwright.return_value = mock_context_manager
+            
+            # Mock the start method to return the playwright instance
+            mock_playwright.start = AsyncMock(return_value=mock_playwright)
             
             await manager.connect(debug_port=9222)
             

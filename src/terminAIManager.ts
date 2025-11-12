@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { PodmanManager } from './podmanManager';
+import { loadAIServices, AIServiceConfig } from './aiService';
 
 export class TerminAIWebviewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'terminai.terminalView';
@@ -103,7 +104,7 @@ export class TerminAIWebviewProvider implements vscode.WebviewViewProvider {
                 this.showHelp();
                 break;
             case 'ls':
-                await this.listAIs();
+                await this.listAIs(args.slice(1));
                 break;
             case 'cd':
                 await this.changeAI(args[1]);
@@ -155,7 +156,7 @@ export class TerminAIWebviewProvider implements vscode.WebviewViewProvider {
 
 Basic Commands:
   cd <ai>       Switch current AI (deepseek, qwen, doubao)
-  ls            List all supported AIs
+  ls [-l]       List all supported AIs (use -l for detailed view)
   qi <question> Ask current AI a question
   status        Check system status
   clear         Clear terminal
@@ -171,13 +172,59 @@ Tips:
         this.postMessage({ type: 'output', content: helpText });
     }
 
-    private async listAIs() {
-        const supportedAIs = ['deepseek', 'qwen', 'doubao', 'chatgpt'];
-        const aiList = supportedAIs.join(', ');
-        this.postMessage({ 
+    private async listAIs(args: string[] = []) {
+        const detailed = args.includes('-l') || args.includes('--long');
+        
+        if (detailed) {
+            // Get detailed AI service information
+            const aiServices: AIServiceConfig[] = loadAIServices();
+            if (aiServices.length === 0) {
+                this.postMessage({ 
+                    type: 'output', 
+                    content: 'No AI services configured.\n' 
+                });
+                return;
+            }
+            
+            // Sort by sequence number
+            const sortedServices = aiServices.sort((a: AIServiceConfig, b: AIServiceConfig) => a.sequence - b.sequence);
+            
+            // Create detailed listing
+            let output = 'Detailed AI Services List:\n';
+            output += '==========================\n';
+            output += 'Seq  ID              Name                 Category      Status   URL\n';
+            output += '---- --------------- -------------------- ------------- -------- ------------------------------------------\n';
+            
+            for (const service of sortedServices) {
+                const status = service.enabled ? 'Enabled' : 'Disabled';
+                const category = service.category || 'Unknown';
+                output += `${service.sequence.toString().padStart(4)} ${service.id.padEnd(15)} ${service.name.padEnd(20)} ${category.padEnd(13)} ${status.padEnd(8)} ${service.url}\n`;
+            }
+            
+            this.postMessage({ 
+                type: 'output', 
+                content: output 
+            });
+        } else {
+            // Original simple listing
+            const aiServices: AIServiceConfig[] = loadAIServices();
+            if (aiServices.length === 0) {
+                this.postMessage({ 
+                    type: 'output', 
+                    content: 'No AI services configured.\n' 
+                });
+                return;
+            }
+            
+            // Get enabled services only for simple listing
+            const enabledServices = aiServices.filter((service: AIServiceConfig) => service.enabled);
+            const serviceNames = enabledServices.map((service: AIServiceConfig) => service.id);
+            const aiList = serviceNames.join(', ');
+            this.postMessage({ 
                 type: 'output', 
                 content: `Supported AI services: ${aiList}\n` 
             });
+        }
     }
 
     private async changeAI(aiName?: string) {
