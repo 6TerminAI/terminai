@@ -24,6 +24,7 @@ class BrowserManager:
         self.playwright: Optional[Playwright] = None
         self.chrome_manager: Optional[ChromeManager] = None
         self.ai_urls = load_ai_urls()
+        self.debug_port: Optional[int] = None
     
     async def start_chrome_automatically(self, headless: bool = False) -> bool:
         """Start Chrome automatically with debug port"""
@@ -50,7 +51,10 @@ class BrowserManager:
             if contexts and contexts[0].pages:
                 self.page = contexts[0].pages[0]
             else:
-                self.page = await contexts[0].new_page() if contexts else await self.browser.new_page()
+                self.page = contexts[0].new_page() if contexts else await self.browser.new_page()
+            
+            # Store the debug port for status reporting
+            self.debug_port = debug_port
             
             logger.info(f"Connected to browser on port {debug_port}")
         

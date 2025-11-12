@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from .browser import BrowserManager
-from .utils import load_ai_urls
+from .utils import load_ai_urls, load_ai_services
 
 # Load configuration
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'config.yaml')
@@ -83,20 +83,31 @@ async def root():
 async def health_check():
     """Health check endpoint"""
     browser_status = "connected" if browser_manager and browser_manager.is_connected() else "disconnected"
+    debug_port = browser_manager.debug_port if browser_manager and browser_manager.debug_port else 9222
     
     return {
         "status": "healthy",
         "browser": browser_status,
+        "debug_port": debug_port,
         "timestamp": asyncio.get_event_loop().time()
     }
 
 @app.post("/init")
-async def init_browser(debug_port: int = 9222):
+async def init_browser(request: dict):
     """Initialize browser connection"""
     if not browser_manager:
         raise HTTPException(status_code=500, detail="Browser manager not initialized")
     
+    debug_port = request.get("debug_port", 9222)
+    auto_start = request.get("auto_start", False)
+    
     try:
+        # If auto_start is enabled, try to start Chrome automatically
+        if auto_start:
+            started = await browser_manager.start_chrome_automatically()
+            if not started:
+                logger.warning("Failed to start Chrome automatically, trying to connect to existing instance")
+        
         await browser_manager.connect(debug_port)
         return {"success": True, "message": "Browser connected successfully"}
     except Exception as e:
@@ -120,9 +131,25 @@ async def ask_question(ai: str, question: str):
 async def get_supported_ais():
     """Get supported AI list"""
     # Get AI services from utility function
-    ai_urls = load_ai_urls()
-    ai_list = list(ai_urls.keys()) if ai_urls else []
-    default_ai = ai_list[0] if ai_list else "deepseek"
+    ai_services = load_ai_services()
+    
+    # Convert AIService objects to dictionaries for JSON serialization
+    ai_list = []
+    for service in ai_services:
+        ai_list.append({
+            "id": service.id,
+            "name": service.name,
+            "url": service.url,
+            "category": service.category,
+            "enabled": service.enabled,
+            "sequence": service.sequence,
+            "icon": service.icon,
+            "priority": service.priority,
+            "authentication_required": service.authentication_required,
+            "capabilities": service.capabilities
+        })
+    
+    default_ai = ai_list[0]["id"] if ai_list else "deepseek"
     
     return {
         "ais": ai_list,
@@ -130,10 +157,14 @@ async def get_supported_ais():
     }
 
 @app.post("/switch")
-async def switch_ai(ai: str):
+async def switch_ai(request: dict):
     """Switch to the specified AI"""
     if not browser_manager or not browser_manager.is_connected():
         raise HTTPException(status_code=400, detail="Browser not connected")
+    
+    ai = request.get("ai")
+    if not ai:
+        raise HTTPException(status_code=400, detail="AI parameter is required")
     
     try:
         await browser_manager.switch_ai(ai)

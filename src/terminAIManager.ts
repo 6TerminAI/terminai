@@ -10,6 +10,8 @@ export class TerminAIWebviewProvider implements vscode.WebviewViewProvider {
     private currentAI: string = 'deepseek'; // Default AI service
     private commandHistory: string[] = [];
     private historyIndex: number = -1;
+    private waitingForChromeConfirmation: boolean = false;
+    private pendingAIChange: string | null = null;
 
     constructor(private extensionUri: vscode.Uri) {
         this.podmanManager = new PodmanManager();
@@ -44,19 +46,61 @@ export class TerminAIWebviewProvider implements vscode.WebviewViewProvider {
             this.postMessage({ type: 'output', content: '🚀 TerminAI starting up...\n' });
             
             try {
-                // Start Chrome browser with debug port
-                this.postMessage({ type: 'output', content: '🌐 Starting Chrome browser...\n' });
-                const debugPort = await this.chromeManager.startChrome();
-                this.postMessage({ type: 'output', content: `✅ Chrome started on debug port ${debugPort}\n` });
+                // Check if MCP server is already running locally
+                this.postMessage({ type: 'output', content: '🔍 Checking for local MCP server...\n' });
                 
-                // Start Podman container with Chrome debug port
-                this.postMessage({ type: 'output', content: '🐳 Starting Podman container...\n' });
-                await this.podmanManager.startContainer(debugPort);
-                this.postMessage({ type: 'output', content: '✅ Podman container started\n' });
+                // Test connection to local MCP server
+                const isServerRunning = await this.testMCPConnection();
+                
+                if (isServerRunning) {
+                    this.postMessage({ type: 'output', content: '✅ Connected to local MCP server\n' });
+                    
+                    // Get default AI from MCP server
+                    const defaultAI = await this.getDefaultAIFromMCP();
+                    if (defaultAI) {
+                        this.currentAI = defaultAI;
+                        this.postMessage({ type: 'output', content: `✅ Default AI service: ${this.currentAI}\n` });
+                        // Update prompt with the correct AI service
+                        this.postMessage({ type: 'updatePrompt', ai: this.currentAI });
+                    } else {
+                        this.currentAI = 'unknown';
+                        this.postMessage({ type: 'output', content: '⚠️ Could not determine default AI service\n' });
+                        // Update prompt to unknown
+                        this.postMessage({ type: 'updatePrompt', ai: this.currentAI });
+                    }
+                    
+                    // Initialize browser connection with MCP server
+                    this.postMessage({ type: 'output', content: '🌐 Initializing browser connection...\n' });
+                    await this.initializeBrowserWithMCP();
+                    this.postMessage({ type: 'output', content: '✅ Browser connection initialized\n' });
+                } else {
+                    // Fallback to starting Chrome and Podman if local server not available
+                    this.postMessage({ type: 'output', content: '🌐 Starting Chrome browser...\n' });
+                    const debugPort = await this.chromeManager.startChrome();
+                    this.postMessage({ type: 'output', content: `✅ Chrome started on debug port ${debugPort}\n` });
+                    
+                    this.postMessage({ type: 'output', content: '🐳 Starting Podman container...\n' });
+                    await this.podmanManager.startContainer(debugPort);
+                    this.postMessage({ type: 'output', content: '✅ Podman container started\n' });
+                    
+                    // Try to get default AI from MCP server after container starts
+                    const defaultAI = await this.getDefaultAIFromMCP();
+                    if (defaultAI) {
+                        this.currentAI = defaultAI;
+                        this.postMessage({ type: 'output', content: `✅ Default AI service: ${this.currentAI}\n` });
+                        // Update prompt with the correct AI service
+                        this.postMessage({ type: 'updatePrompt', ai: this.currentAI });
+                    } else {
+                        this.currentAI = 'unknown';
+                        this.postMessage({ type: 'output', content: '⚠️ Could not determine default AI service\n' });
+                        // Update prompt to unknown
+                        this.postMessage({ type: 'updatePrompt', ai: this.currentAI });
+                    }
+                }
                 
                 this.postMessage({ 
                     type: 'output', 
-                    content: `🤖 TerminAI ready! Current AI: ${this.currentAI}\nType 'help' to see available commands\n\nTerminAI:${this.currentAI}$ ` 
+                    content: `🤖 TerminAI ready! Current AI: ${this.currentAI}\nType 'help' to see available commands\n\n${this.currentAI}$ ` 
                 });
             } catch (error) {
                 this.postMessage({ 
@@ -67,6 +111,163 @@ export class TerminAIWebviewProvider implements vscode.WebviewViewProvider {
                 // Clean up resources on failure
                 await this.cleanupResources();
             }
+        }
+    }
+
+    private async testMCPConnection(): Promise<boolean> {
+        try {
+            const http = await import('http');
+            const url = await import('url');
+            
+            const requestUrl = url.parse('http://localhost:3000/health');
+            
+            const responsePromise = new Promise<boolean>((resolve, reject) => {
+                const req = http.request({
+                    hostname: requestUrl.hostname,
+                    port: requestUrl.port ? parseInt(requestUrl.port) : 3000,
+                    path: requestUrl.path,
+                    method: 'GET',
+                    timeout: 3000 // 3 second timeout
+                }, (res) => {
+                    let data = '';
+                    
+                    res.on('data', (chunk) => {
+                        data += chunk;
+                    });
+                    
+                    res.on('end', () => {
+                        try {
+                            const response = JSON.parse(data);
+                            resolve(res.statusCode === 200 && response.status === 'healthy');
+                        } catch (error) {
+                            resolve(false);
+                        }
+                    });
+                });
+                
+                req.on('error', () => {
+                    resolve(false);
+                });
+                
+                req.on('timeout', () => {
+                    req.destroy();
+                    resolve(false);
+                });
+                
+                req.end();
+            });
+            
+            return await responsePromise;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    private async initializeBrowserWithMCP(): Promise<boolean> {
+        try {
+            const http = await import('http');
+            const url = await import('url');
+            
+            const requestUrl = url.parse('http://localhost:3000/init');
+            const postData = JSON.stringify({
+                debug_port: 9222,
+                auto_start: true
+            });
+            
+            const options = {
+                hostname: requestUrl.hostname,
+                port: requestUrl.port ? parseInt(requestUrl.port) : 3000,
+                path: requestUrl.path,
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    'content-length': Buffer.byteLength(postData)
+                }
+            };
+            
+            const responsePromise = new Promise<boolean>((resolve, reject) => {
+                const req = http.request(options, (res) => {
+                    let data = '';
+                    
+                    res.on('data', (chunk) => {
+                        data += chunk;
+                    });
+                    
+                    res.on('end', () => {
+                        try {
+                            const response = JSON.parse(data);
+                            resolve(res.statusCode === 200 && response.success === true);
+                        } catch (error) {
+                            resolve(false);
+                        }
+                    });
+                });
+                
+                req.on('error', (error) => {
+                    reject(error);
+                });
+                
+                req.write(postData);
+                req.end();
+            });
+            
+            return await responsePromise;
+        } catch (error) {
+            console.error('Failed to initialize browser with MCP:', error);
+            return false;
+        }
+    }
+
+    private async getDefaultAIFromMCP(): Promise<string | null> {
+        try {
+            const http = await import('http');
+            const url = await import('url');
+            
+            const requestUrl = url.parse('http://localhost:3000/ais');
+            
+            const responsePromise = new Promise<string | null>((resolve, reject) => {
+                const req = http.request({
+                    hostname: requestUrl.hostname,
+                    port: requestUrl.port ? parseInt(requestUrl.port) : 3000,
+                    path: requestUrl.path,
+                    method: 'GET',
+                    timeout: 5000 // 5 second timeout
+                }, (res) => {
+                    let data = '';
+                    
+                    res.on('data', (chunk) => {
+                        data += chunk;
+                    });
+                    
+                    res.on('end', () => {
+                        try {
+                            const response = JSON.parse(data);
+                            if (res.statusCode === 200 && response.default) {
+                                resolve(response.default);
+                            } else {
+                                resolve(null);
+                            }
+                        } catch (error) {
+                            resolve(null);
+                        }
+                    });
+                });
+                
+                req.on('error', () => {
+                    resolve(null);
+                });
+                
+                req.on('timeout', () => {
+                    req.destroy();
+                    resolve(null);
+                });
+                
+                req.end();
+            });
+            
+            return await responsePromise;
+        } catch (error) {
+            return null;
         }
     }
 
@@ -87,9 +288,7 @@ export class TerminAIWebviewProvider implements vscode.WebviewViewProvider {
                 await this.handleCommand(data.command);
                 break;
             case 'keydown':
-                if (data.key === 'Enter') {
-                    await this.handleCommand(data.input);
-                } else if (data.key === 'ArrowUp') {
+                if (data.key === 'ArrowUp') {
                     this.handleHistoryNavigation('up');
                 } else if (data.key === 'ArrowDown') {
                     this.handleHistoryNavigation('down');
@@ -102,6 +301,50 @@ export class TerminAIWebviewProvider implements vscode.WebviewViewProvider {
         if (!command.trim()) {
             this.addPrompt();
             return;
+        }
+
+        // Check if we're waiting for Chrome confirmation
+        if (this.waitingForChromeConfirmation) {
+            const userInput = command.trim().toLowerCase();
+            if (userInput === 'y' || userInput === 'yes' || userInput === '是') {
+                this.waitingForChromeConfirmation = false;
+                
+                // Auto-start Chrome
+                const success = await this.startChromeAutomatically();
+                
+                if (success) {
+                    // Wait a bit for Chrome to fully start
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    
+                    // Retry the AI change
+                    if (this.pendingAIChange) {
+                        this.postMessage({ 
+                            type: 'output', 
+                            content: `🔄 重新尝试切换到 ${this.pendingAIChange}...\n` 
+                        });
+                        await this.changeAI(this.pendingAIChange);
+                    }
+                } else {
+                    this.postMessage({ 
+                        type: 'output', 
+                        content: `❌ 自动启动Chrome失败，请手动启动Chrome后重试\n` 
+                    });
+                    this.addPrompt();
+                }
+                
+                this.pendingAIChange = null;
+                return;
+            } else {
+                // User declined or entered something else
+                this.waitingForChromeConfirmation = false;
+                this.pendingAIChange = null;
+                this.postMessage({ 
+                    type: 'output', 
+                    content: `❌ Chrome启动已取消，请手动启动Chrome后重试\n` 
+                });
+                this.addPrompt();
+                return;
+            }
         }
 
         // Add to command history
@@ -136,11 +379,13 @@ export class TerminAIWebviewProvider implements vscode.WebviewViewProvider {
             case 'clear':
                 this.clearTerminal();
                 break;
+            case 'chrome':
+                await this.handleChromeCommand(args.slice(1));
+                break;
             default:
-                this.postMessage({ 
-                type: 'output', 
-                content: `❌ Unknown command: ${cmd}\nType 'help' to see available commands\n` 
-            });
+                // Treat unknown commands as questions and forward to qi command
+                const question = command.trim();
+                await this.askQuestion(question);
         }
 
         this.addPrompt();
@@ -180,6 +425,7 @@ Basic Commands:
   clear         Clear terminal
 
 System Commands:
+  chrome        Manage Chrome browser (start, status, help)
   help          Display this help
 
 Tips:
@@ -240,22 +486,22 @@ Tips:
             }
             
             const responseData = (response as any).data;
-            const aiServices = responseData.ais || {};
+            const aiServices = responseData.ais || [];
             
             if (detailed) {
-                // Create detailed listing
+                // Create detailed listing for AIService objects
                 let output = 'Detailed AI Services List:\n';
                 output += '==========================\n';
                 output += 'ID              Name                 Category      URL\n';
                 output += '--------------- -------------------- ------------- ------------------------------------------\n';
                 
-                let index = 1;
-                for (const [serviceId, serviceInfo] of Object.entries(aiServices)) {
-                    const service = serviceInfo as any;
+                aiServices.forEach((service: any) => {
+                    const serviceId = service.id || 'unknown';
+                    const serviceName = service.name || serviceId;
                     const category = service.category || 'Unknown';
-                    output += `${serviceId.padEnd(15)} ${(service.name || serviceId).padEnd(20)} ${category.padEnd(13)} ${service.url || 'N/A'}\n`;
-                    index++;
-                }
+                    const url = service.url || 'N/A';
+                    output += `${serviceId.padEnd(15)} ${serviceName.padEnd(20)} ${category.padEnd(13)} ${url}\n`;
+                });
                 
                 this.postMessage({ 
                     type: 'output', 
@@ -263,7 +509,7 @@ Tips:
                 });
             } else {
                 // Simple listing
-                const serviceNames = Object.keys(aiServices);
+                const serviceNames = aiServices.map((service: any) => service.name || service.id);
                 const aiList = serviceNames.join(', ');
                 this.postMessage({ 
                     type: 'output', 
@@ -279,6 +525,62 @@ Tips:
         }
     }
 
+    private async getSupportedAIs(): Promise<string[]> {
+        try {
+            const http = await import('http');
+            const url = await import('url');
+            
+            const requestUrl = url.parse('http://localhost:3000/ais');
+            
+            const responsePromise = new Promise((resolve, reject) => {
+                const req = http.request({
+                    hostname: requestUrl.hostname,
+                    port: requestUrl.port ? parseInt(requestUrl.port) : 3000,
+                    path: requestUrl.path,
+                    method: 'GET',
+                    headers: {
+                        'content-type': 'application/json'
+                    }
+                }, (res) => {
+                    let data = '';
+                    
+                    res.on('data', (chunk) => {
+                        data += chunk;
+                    });
+                    
+                    res.on('end', () => {
+                        try {
+                            const response = JSON.parse(data);
+                            resolve({ ok: res.statusCode === 200, status: res.statusCode, data: response });
+                        } catch (error) {
+                            reject(error);
+                        }
+                    });
+                });
+                
+                req.on('error', (error) => {
+                    reject(error);
+                });
+                
+                req.end();
+            });
+            
+            const response = await responsePromise;
+            
+            if (!(response as any).ok) {
+                throw new Error(`HTTP error! status: ${(response as any).status}`);
+            }
+            
+            const responseData = (response as any).data;
+            const aiServices = responseData.ais || [];
+            
+            return aiServices.map((service: any) => (service.id || '').toLowerCase());
+        } catch (error) {
+            console.error('Failed to get supported AIs:', error);
+            return ['deepseek', 'qwen', 'doubao', 'chatgpt']; // Fallback to default list
+        }
+    }
+
     private async changeAI(aiName?: string) {
         if (!aiName) {
             this.postMessage({ 
@@ -288,7 +590,8 @@ Tips:
             return;
         }
 
-        const supportedAIs = ['deepseek', 'qwen', 'doubao', 'chatgpt'];
+        // Get supported AIs from container API
+        const supportedAIs = await this.getSupportedAIs();
         if (!supportedAIs.includes(aiName.toLowerCase())) {
             this.postMessage({ 
                 type: 'output', 
@@ -305,9 +608,9 @@ Tips:
             const http = await import('http');
             const url = await import('url');
             
-            const requestUrl = url.parse(`http://localhost:3000/switch-ai`);
+            const requestUrl = url.parse(`http://localhost:3000/switch`);
             const postData = JSON.stringify({
-                aiName: this.currentAI
+                ai: this.currentAI
             });
             
             const options = {
@@ -357,6 +660,11 @@ Tips:
                             type: 'output', 
                             content: `✅ Switched to ${this.currentAI}\n` 
                         });
+                    // Update prompt after successful AI switch
+                    this.postMessage({
+                        type: 'updatePrompt',
+                        ai: this.currentAI
+                    });
                 } else {
                     this.postMessage({ 
                             type: 'output', 
@@ -364,6 +672,16 @@ Tips:
                         });
                 }
             } else {
+                // Handle browser not connected error (400 status)
+                if ((response as any).status === 400) {
+                    const errorMessage = (response as any).data?.detail || 'Browser not connected';
+                    
+                    if (errorMessage.includes('Browser not connected')) {
+                        // Show Chrome startup command and ask for confirmation
+                        await this.handleChromeNotStarted(aiName);
+                        return;
+                    }
+                }
                 throw new Error(`HTTP error! status: ${(response as any).status}`);
             }
         } catch (error) {
@@ -371,6 +689,88 @@ Tips:
                     type: 'output', 
                     content: `❌ Failed to switch AI: ${error}\n` 
                 });
+        }
+    }
+
+    private async handleChromeNotStarted(aiName: string) {
+        // Show Chrome startup command
+        const chromeCommand = this.getChromeStartupCommand();
+        
+        this.postMessage({ 
+            type: 'output', 
+            content: `🔧 Chrome浏览器未启动，无法切换到 ${aiName}\n` 
+        });
+        
+        this.postMessage({ 
+            type: 'output', 
+            content: `📋 请手动启动Chrome浏览器，使用以下命令：\n${chromeCommand}\n` 
+        });
+        
+        this.postMessage({ 
+            type: 'output', 
+            content: `💡 或者，输入 'y' 让TerminAI自动启动Chrome：` 
+        });
+        
+        // Wait for user confirmation
+        this.waitingForChromeConfirmation = true;
+        this.pendingAIChange = aiName;
+    }
+
+    private getChromeStartupCommand(debugPort: number = 9222, additionalArgs: string[] = []): string {
+        const os = require('os');
+        const platform = os.platform();
+        
+        // Base arguments
+        const baseArgs = [
+            `--remote-debugging-port=${debugPort}`,
+            `--user-data-dir="${platform === 'win32' ? '%USERPROFILE%\\terminai_chrome_data' : '~/terminai_chrome_data'}"`,
+            '--no-first-run',
+            '--no-default-browser-check'
+        ];
+        
+        // Combine all arguments
+        const allArgs = [...baseArgs, ...additionalArgs];
+        
+        if (platform === 'win32') {
+            return `"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" ${allArgs.join(' ')}`;
+        } else if (platform === 'darwin') {
+            return `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ${allArgs.join(' ')}`;
+        } else {
+            return `google-chrome ${allArgs.join(' ')}`;
+        }
+    }
+
+    private async startChromeAutomatically(debugPort: number = 9222, additionalArgs: string[] = []): Promise<boolean> {
+        try {
+            const { exec } = require('child_process');
+            const util = require('util');
+            const execAsync = util.promisify(exec);
+            
+            const command = this.getChromeStartupCommand(debugPort, additionalArgs);
+            
+            this.postMessage({ 
+                type: 'output', 
+                content: `🚀 Starting Chrome browser with debug port ${debugPort}...\n` 
+            });
+            
+            // Start Chrome in background
+            const { stdout, stderr } = await execAsync(command, { windowsHide: true });
+            
+            // Wait for Chrome to start
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            
+            this.postMessage({ 
+                type: 'output', 
+                content: `✅ Chrome browser started successfully\n` 
+            });
+            
+            return true;
+        } catch (error) {
+            this.postMessage({ 
+                type: 'output', 
+                content: `❌ Failed to start Chrome automatically: ${error}\n` 
+            });
+            return false;
         }
     }
 
@@ -479,7 +879,7 @@ Tips:
     private addPrompt() {
         this.postMessage({ 
             type: 'output', 
-            content: `TerminAI:${this.currentAI}$ ` 
+            content: `${this.currentAI}$ ` 
         });
     }
 
@@ -558,111 +958,315 @@ Tips:
         <body>
             <div id="terminal"></div>
             <div class="input-line">
-                <span id="prompt" class="prompt">TerminAI:loading$ </span>
+                <span id="prompt" class="prompt">loading$ </span>
                 <input type="text" id="command-input" autocomplete="off" autofocus>
             </div>
 
             <script>
+                // Global message listener registration to prevent duplicates
+                if (!window.terminaiMessageListenerRegistered) {
+                    window.terminaiMessageListenerRegistered = true;
+                    
+                    window.addEventListener('message', event => {
+                        const message = event.data;
+                        const terminal = document.getElementById('terminal');
+                        const commandInput = document.getElementById('command-input');
+                        const promptSpan = document.getElementById('prompt');
+                        
+                        if (!terminal || !commandInput || !promptSpan) return;
+                        
+                        let currentPrompt = promptSpan.textContent || 'loading$ ';
+                        
+                        // Scroll to bottom
+                        function scrollToBottom() {
+                            terminal.scrollTop = terminal.scrollHeight;
+                        }
+                        
+                        // Output content to terminal
+                        function outputToTerminal(content) {
+                            if (typeof content === 'string') {
+                                const outputElement = document.createElement('div');
+                                outputElement.className = 'output';
+                                outputElement.textContent = content;
+                                terminal.appendChild(outputElement);
+                            }
+                            scrollToBottom();
+                        }
+                        
+                        // Add command to terminal
+                        function addCommandToTerminal(command) {
+                            const commandElement = document.createElement('div');
+                            commandElement.className = 'command';
+                            commandElement.textContent = currentPrompt + command;
+                            terminal.appendChild(commandElement);
+                            scrollToBottom();
+                        }
+                        
+                        // Update prompt
+                        function updatePrompt(ai) {
+                            currentPrompt = ai + '$ ';
+                            promptSpan.textContent = currentPrompt;
+                        }
+                        
+                        // Clear terminal
+                        function clearTerminal() {
+                            terminal.innerHTML = '';
+                        }
+                        
+                        // Set input box content
+                        function setInput(value) {
+                            commandInput.value = value;
+                            commandInput.focus();
+                        }
+                        
+                        // Handle message types
+                        switch (message.type) {
+                            case 'output':
+                                outputToTerminal(message.content);
+                                break;
+                            case 'command':
+                                addCommandToTerminal(message.content);
+                                break;
+                            case 'clear':
+                                clearTerminal();
+                                break;
+                            case 'setInput':
+                                setInput(message.command);
+                                break;
+                            case 'updatePrompt':
+                                updatePrompt(message.ai);
+                                break;
+                        }
+                    });
+                }
+                
+                // Initialize VS Code API and input handling for this instance
                 const vscode = acquireVsCodeApi();
                 const terminal = document.getElementById('terminal');
                 const commandInput = document.getElementById('command-input');
                 const promptSpan = document.getElementById('prompt');
                 
-                let currentPrompt = 'TerminAI:loading$ ';
-                
-                // Scroll to bottom
-                function scrollToBottom() {
-                    terminal.scrollTop = terminal.scrollHeight;
-                }
-                
-                // Output content to terminal
-                function outputToTerminal(content) {
-                    if (typeof content === 'string') {
-                        const outputElement = document.createElement('div');
-                        outputElement.className = 'output';
-                        outputElement.textContent = content;
-                        terminal.appendChild(outputElement);
-                    }
-                    scrollToBottom();
-                }
-                
-                // Add command to terminal
-                function addCommandToTerminal(command) {
-                    const commandElement = document.createElement('div');
-                    commandElement.className = 'command';
-                    commandElement.textContent = currentPrompt + command;
-                    terminal.appendChild(commandElement);
-                    scrollToBottom();
-                }
-                
-                // Update prompt
-                function updatePrompt(ai) {
-                    currentPrompt = 'TerminAI:' + ai + '$ ';
-                    promptSpan.textContent = currentPrompt;
-                }
-                
-                // Clear terminal
-                function clearTerminal() {
-                    terminal.innerHTML = '';
-                }
-                
-                // Set input box content
-                function setInput(value) {
-                    commandInput.value = value;
-                    commandInput.focus();
-                }
-                
-                // VS Code message handling
-                window.addEventListener('message', event => {
-                    const message = event.data;
-                    switch (message.type) {
-                        case 'output':
-                            outputToTerminal(message.content);
-                            break;
-                        case 'command':
-                            addCommandToTerminal(message.content);
-                            break;
-                        case 'clear':
-                            clearTerminal();
-                            break;
-                        case 'setInput':
-                            setInput(message.command);
-                            break;
-                        case 'updatePrompt':
-                            updatePrompt(message.ai);
-                            break;
-                    }
-                });
-                
-                // Command input handling
-                commandInput.addEventListener('keydown', event => {
-                    // Send message to VS Code extension
-                    vscode.postMessage({
-                        type: 'keydown',
-                        key: event.key,
-                        input: commandInput.value
-                    });
-                    
-                    if (event.key === 'Enter') {
-                        // Send command to VS Code extension
+                if (commandInput) {
+                    // Command input handling - only register once
+                    commandInput.addEventListener('keydown', event => {
+                        // Send message to VS Code extension
                         vscode.postMessage({
-                            type: 'command',
-                            command: commandInput.value
+                            type: 'keydown',
+                            key: event.key,
+                            input: commandInput.value
                         });
                         
-                        commandInput.value = '';
-                        event.preventDefault();
-                    }
-                });
-                
-                // Initial focus
-                commandInput.focus();
+                        if (event.key === 'Enter') {
+                            // Send command to VS Code extension
+                            vscode.postMessage({
+                                type: 'command',
+                                command: commandInput.value
+                            });
+                            
+                            commandInput.value = '';
+                            event.preventDefault();
+                        }
+                    });
+                    
+                    // Initial focus
+                    commandInput.focus();
+                }
             </script>
 
         </body>
 
         </html>`;
 
+    }
+
+    private async handleChromeCommand(args: string[]): Promise<void> {
+        const subCommand = args.length > 0 ? args[0].toLowerCase() : 'status';
+        
+        switch (subCommand) {
+            case 'start':
+                await this.startChromeWithArgs(args.slice(1));
+                break;
+            case 'status':
+                await this.checkChromeStatus();
+                break;
+            case 'help':
+                this.showChromeHelp();
+                break;
+            default:
+                this.postMessage({ 
+                    type: 'output', 
+                    content: `❌ Unknown chrome subcommand: ${subCommand}\nType 'chrome help' to see available subcommands\n` 
+                });
+        }
+    }
+
+    private async startChromeWithArgs(args: string[]): Promise<void> {
+        let debugPort = 9222;
+        let additionalArgs: string[] = [];
+        
+        // Parse arguments
+        for (let i = 0; i < args.length; i++) {
+            const arg = args[i];
+            if (arg === '--port' && i + 1 < args.length) {
+                debugPort = parseInt(args[i + 1]);
+                i++; // Skip next argument
+            } else if (arg === '--headless') {
+                additionalArgs.push('--headless');
+            } else if (arg === '--no-sandbox') {
+                additionalArgs.push('--no-sandbox');
+            } else if (arg === '--disable-web-security') {
+                additionalArgs.push('--disable-web-security');
+            } else if (arg.startsWith('--')) {
+                additionalArgs.push(arg);
+            }
+        }
+        
+        this.postMessage({ 
+            type: 'output', 
+            content: `🚀 Starting Chrome with debug port ${debugPort}...\n` 
+        });
+        
+        try {
+            const success = await this.startChromeAutomatically(debugPort, additionalArgs);
+            if (success) {
+                this.postMessage({ 
+                    type: 'output', 
+                    content: `✅ Chrome started successfully on port ${debugPort}\n` 
+                });
+                
+                // Wait a bit for Chrome to fully start
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // Try to connect to the browser
+                await this.checkChromeStatus();
+            } else {
+                this.postMessage({ 
+                    type: 'output', 
+                    content: `❌ Failed to start Chrome\n` 
+                });
+            }
+        } catch (error) {
+            this.postMessage({ 
+                type: 'output', 
+                content: `❌ Error starting Chrome: ${error}\n` 
+            });
+        }
+    }
+
+    private async checkChromeStatus(): Promise<void> {
+        try {
+            // Check MCP server health endpoint
+            const http = await import('http');
+            const url = await import('url');
+            
+            const requestUrl = url.parse('http://localhost:3000/health');
+            
+            const responsePromise = new Promise<any>((resolve, reject) => {
+                const req = http.request({
+                    hostname: requestUrl.hostname,
+                    port: requestUrl.port ? parseInt(requestUrl.port) : 3000,
+                    path: requestUrl.path,
+                    method: 'GET',
+                    timeout: 5000
+                }, (res) => {
+                    let data = '';
+                    
+                    res.on('data', (chunk) => {
+                        data += chunk;
+                    });
+                    
+                    res.on('end', () => {
+                        try {
+                            const response = JSON.parse(data);
+                            resolve({ 
+                                statusCode: res.statusCode, 
+                                data: response 
+                            });
+                        } catch (error) {
+                            reject(error);
+                        }
+                    });
+                });
+                
+                req.on('error', (error) => {
+                    reject(error);
+                });
+                
+                req.on('timeout', () => {
+                    req.destroy();
+                    reject(new Error('Request timeout'));
+                });
+                
+                req.end();
+            });
+            
+            const response = await responsePromise;
+            
+            if (response.statusCode === 200) {
+                const browserStatus = response.data.browser || 'unknown';
+                const debugPort = response.data.debug_port || 9222;
+                const statusText = browserStatus === 'connected' ? '✅ Connected' : '❌ Disconnected';
+                
+                this.postMessage({ 
+                    type: 'output', 
+                    content: `📊 Chrome Status:\n` +
+                            `  • MCP Server: ✅ Running\n` +
+                            `  • Browser: ${statusText}\n` +
+                            `  • Debug Port: ${debugPort}\n` +
+                            `  • Timestamp: ${new Date().toLocaleString()}\n`
+                });
+                
+                if (browserStatus === 'disconnected') {
+                    this.postMessage({ 
+                        type: 'output', 
+                        content: `💡 Tip: Use 'chrome start' to launch Chrome browser\n` 
+                    });
+                }
+            } else {
+                this.postMessage({ 
+                    type: 'output', 
+                    content: `❌ MCP Server is not responding (status: ${response.statusCode})\n` 
+                });
+            }
+        } catch (error) {
+            this.postMessage({ 
+                type: 'output', 
+                content: `❌ Error checking Chrome status: ${error}\n` 
+            });
+        }
+    }
+
+    private showChromeHelp(): void {
+        const helpText = `
+📖 Chrome Command Help:
+
+Usage:
+  chrome [subcommand] [options]
+
+Subcommands:
+  start     Start Chrome browser with optional parameters
+  status    Check Chrome browser status (default)
+  help      Display this help
+
+Start Options:
+  --port <number>        Set debug port (default: 9222)
+  --headless            Run Chrome in headless mode
+  --no-sandbox          Disable sandbox (useful in containers)
+  --disable-web-security Disable web security (for testing)
+
+Examples:
+  chrome                    # Check Chrome status
+  chrome start              # Start Chrome on default port 9222
+  chrome start --port 9333  # Start Chrome on port 9333
+  chrome start --headless   # Start Chrome in headless mode
+  chrome help               # Show this help
+
+Note:
+• Chrome must be running for AI commands to work
+• Use 'chrome status' to verify browser connection
+• The system will automatically try to connect to Chrome
+        `;
+        this.postMessage({ type: 'output', content: helpText });
     }
 
 
