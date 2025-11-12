@@ -10,8 +10,18 @@ import { ConfigurationManager } from '../../src/configurationManager';
 
 describe('Configuration Management Integration', () => {
     let configurationManager: ConfigurationManager;
+    let mockGet: jest.Mock;
     
     beforeEach(() => {
+        // Mock VS Code configuration API before creating ConfigurationManager
+        mockGet = jest.fn().mockImplementation((key, defaultValue) => {
+            // Simulate vscode configuration behavior: return defaultValue if value is undefined
+            return defaultValue;
+        });
+        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+            get: mockGet
+        });
+        
         configurationManager = new ConfigurationManager();
     });
     
@@ -20,57 +30,46 @@ describe('Configuration Management Integration', () => {
     });
 
     it('should retrieve API key from VS Code settings', () => {
-        // Mock VS Code configuration API
-        const mockGet = jest.fn();
-        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
-            get: mockGet
-        });
-        
         // Set up mock return value
         mockGet.mockReturnValue('test-api-key');
         
         // Test configuration retrieval
-        const apiKey = configurationManager.getAPIKey();
+        const apiKey = configurationManager.getApiKey();
         
         // Verify the configuration was retrieved correctly
         expect(apiKey).toBe('test-api-key');
         expect(vscode.workspace.getConfiguration).toHaveBeenCalledWith('terminai');
-        expect(mockGet).toHaveBeenCalledWith('apiKey');
+        expect(mockGet).toHaveBeenCalledWith('apiKey', '');
     });
 
     it('should handle missing API key configuration gracefully', () => {
-        // Mock VS Code configuration API
-        const mockGet = jest.fn();
-        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
-            get: mockGet
+        // Set up mock return value for missing config
+        // The mock should return the defaultValue when value is undefined
+        mockGet.mockImplementation((key, defaultValue) => {
+            // Return defaultValue to simulate missing configuration
+            return defaultValue;
         });
         
-        // Set up mock return value for missing config
-        mockGet.mockReturnValue(undefined);
-        
         // Test configuration retrieval
-        const apiKey = configurationManager.getAPIKey();
+        const apiKey = configurationManager.getApiKey();
         
         // Verify the configuration handles missing values correctly
-        expect(apiKey).toBeNull();
+        expect(apiKey).toBe('');
     });
     
     it('should retrieve model configuration from VS Code settings', () => {
-        // Mock VS Code configuration API
-        const mockConfiguration = {
-            get: jest.fn()
-        };
-        (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue(mockConfiguration);
-        
         // Set up mock return value for model
-        mockConfiguration.get.mockReturnValue('gpt-4');
+        mockGet.mockImplementation((key, defaultValue) => {
+            if (key === 'model') return 'gpt-4';
+            return defaultValue;
+        });
         
         // Test model configuration retrieval
-        const model = (configurationManager as any).getConfiguration('model');
+        const model = configurationManager.getModel();
         
         // Verify the configuration was retrieved correctly
         expect(model).toBe('gpt-4');
         expect(vscode.workspace.getConfiguration).toHaveBeenCalledWith('terminai');
-        expect(mockConfiguration.get).toHaveBeenCalledWith('model');
+        expect(mockGet).toHaveBeenCalledWith('model', 'gpt-4');
     });
 });

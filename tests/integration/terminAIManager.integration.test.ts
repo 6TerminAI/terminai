@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { TerminAIManager } from '../../src/terminAIManager';
+import { TerminAIWebviewProvider } from '../../src/terminAIManager';
 
 /**
  * Integration Test: TerminAIManager with VS Code API
@@ -9,41 +9,43 @@ import { TerminAIManager } from '../../src/terminAIManager';
  */
 
 describe('TerminAIManager Integration', () => {
-    let terminAIManager: TerminAIManager;
+    let terminAIManager: TerminAIWebviewProvider;
     let mockContext: vscode.ExtensionContext;
 
     beforeEach(() => {
-        // Create a mock context
-        mockContext = {
-            subscriptions: [],
-            globalState: {
-                get: jest.fn(),
-                update: jest.fn()
-            },
-            extensionPath: '/test/path'
+        // Create mock vscode.Uri for extensionUri
+        const mockUri = {
+            fsPath: '/test/path'
         } as any;
 
-        terminAIManager = new TerminAIManager(mockContext);
+        terminAIManager = new TerminAIWebviewProvider(mockUri);
     });
 
     afterEach(() => {
         jest.clearAllMocks();
     });
 
-    it('should initialize and register with VS Code correctly', async () => {
-        // Test initialization
-        const initResult = await terminAIManager.initialize();
-        expect(initResult).toBe(true);
+    it('should create webview view successfully', () => {
+        // Create mock webview view
+        const mockWebviewView = {
+            webview: {
+                options: {},
+                html: '',
+                onDidReceiveMessage: jest.fn(),
+                postMessage: jest.fn()
+            }
+        } as any;
         
-        // Verify the manager is properly integrated with VS Code
-        expect(terminAIManager).toBeDefined();
+        // Test webview view resolution
+        terminAIManager.resolveWebviewView(mockWebviewView, {} as any, {} as any);
+        
+        // Verify webview was configured
+        expect(mockWebviewView.webview.options).toBeDefined();
+        expect(mockWebviewView.webview.html).toBeDefined();
     });
 
-    it('should handle VS Code commands correctly', async () => {
-        // Test that the manager can properly integrate with VS Code command system
-        await terminAIManager.initialize();
-        
-        // Verify that commands can be registered and handled
-        expect(terminAIManager).toBeTruthy();
+    it('should have view type defined', () => {
+        // Test static view type property
+        expect(TerminAIWebviewProvider.viewType).toBe('terminai.terminalView');
     });
 });

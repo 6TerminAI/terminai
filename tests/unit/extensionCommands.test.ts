@@ -9,7 +9,10 @@ jest.mock('vscode', () => {
         ...originalModule,
         window: {
             showErrorMessage: jest.fn(),
-            showInformationMessage: jest.fn()
+            showInformationMessage: jest.fn(),
+            registerWebviewViewProvider: jest.fn().mockReturnValue({
+                dispose: jest.fn()
+            })
         },
         commands: {
             registerCommand: jest.fn().mockImplementation((_commandName, _callback) => {

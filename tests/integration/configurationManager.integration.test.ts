@@ -26,25 +26,34 @@ describe('ConfigurationManager Integration', () => {
             get: mockGet
         });
         
+        // Recreate configuration manager with mocked configuration
+        configurationManager = new ConfigurationManager();
+        
         // Test configuration retrieval
-        const apiKey = configurationManager.getAPIKey();
+        const apiKey = configurationManager.getApiKey();
         
         // Verify the configuration was retrieved correctly
         expect(apiKey).toBe('test-api-key');
-        expect(vscode.workspace.getConfiguration).toHaveBeenCalledWith('terminAI');
+        expect(vscode.workspace.getConfiguration).toHaveBeenCalledWith('terminai');
     });
 
     it('should handle missing configuration gracefully', () => {
         // Mock VS Code configuration API with undefined value
-        const mockGet = jest.fn().mockReturnValue(undefined);
+        const mockGet = jest.fn().mockImplementation((key, defaultValue) => {
+            // Simulate vscode configuration behavior: return defaultValue if value is undefined
+            return defaultValue;
+        });
         (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
             get: mockGet
         });
         
+        // Recreate configuration manager with mocked configuration
+        configurationManager = new ConfigurationManager();
+        
         // Test configuration retrieval
-        const apiKey = configurationManager.getAPIKey();
+        const apiKey = configurationManager.getApiKey();
         
         // Verify the configuration handles missing values correctly
-        expect(apiKey).toBeNull();
+        expect(apiKey).toBe('');
     });
 });

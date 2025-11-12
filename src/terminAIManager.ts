@@ -1,17 +1,19 @@
 import * as vscode from 'vscode';
 import { PodmanManager } from './podmanManager';
-import { loadAIServices, AIServiceConfig } from './aiService';
+import { ChromeManager } from './chromeManager';
 
 export class TerminAIWebviewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'terminai.terminalView';
     private webviewView?: vscode.WebviewView;
     private podmanManager: PodmanManager;
+    private chromeManager: ChromeManager;
     private currentAI: string = 'deepseek'; // Default AI service
     private commandHistory: string[] = [];
     private historyIndex: number = -1;
 
     constructor(private extensionUri: vscode.Uri) {
         this.podmanManager = new PodmanManager();
+        this.chromeManager = new ChromeManager();
     }
 
     public resolveWebviewView(
@@ -42,13 +44,15 @@ export class TerminAIWebviewProvider implements vscode.WebviewViewProvider {
             this.postMessage({ type: 'output', content: '🚀 TerminAI starting up...\n' });
             
             try {
-                // Start Podman container
-                await this.podmanManager.startContainer();
-                this.postMessage({ type: 'output', content: '✅ Podman container started\n' });
+                // Start Chrome browser with debug port
+                this.postMessage({ type: 'output', content: '🌐 Starting Chrome browser...\n' });
+                const debugPort = await this.chromeManager.startChrome();
+                this.postMessage({ type: 'output', content: `✅ Chrome started on debug port ${debugPort}\n` });
                 
-                // Start browser
-                await this.podmanManager.startBrowser();
-                this.postMessage({ type: 'output', content: '✅ Browser started\n' });
+                // Start Podman container with Chrome debug port
+                this.postMessage({ type: 'output', content: '🐳 Starting Podman container...\n' });
+                await this.podmanManager.startContainer(debugPort);
+                this.postMessage({ type: 'output', content: '✅ Podman container started\n' });
                 
                 this.postMessage({ 
                     type: 'output', 
@@ -59,9 +63,23 @@ export class TerminAIWebviewProvider implements vscode.WebviewViewProvider {
                     type: 'output', 
                     content: `❌ Initialization failed: ${error}\n` 
                 });
+                
+                // Clean up resources on failure
+                await this.cleanupResources();
             }
         }
     }
+
+    private async cleanupResources() {
+        try {
+            await this.podmanManager.dispose();
+            await this.chromeManager.stopChrome();
+        } catch (error) {
+            console.error('Error during cleanup:', error);
+        }
+    }
+
+
 
     private async handleMessage(data: any) {
         switch (data.type) {
@@ -175,54 +193,88 @@ Tips:
     private async listAIs(args: string[] = []) {
         const detailed = args.includes('-l') || args.includes('--long');
         
-        if (detailed) {
-            // Get detailed AI service information
-            const aiServices: AIServiceConfig[] = loadAIServices();
-            if (aiServices.length === 0) {
-                this.postMessage({ 
-                    type: 'output', 
-                    content: 'No AI services configured.\n' 
+        try {
+            // Call MCP server API to get supported AI services
+            const http = await import('http');
+            const url = await import('url');
+            
+            const requestUrl = url.parse('http://localhost:3000/ais');
+            
+            const responsePromise = new Promise((resolve, reject) => {
+                const req = http.request({
+                    hostname: requestUrl.hostname,
+                    port: requestUrl.port ? parseInt(requestUrl.port) : 3000,
+                    path: requestUrl.path,
+                    method: 'GET',
+                    headers: {
+                        'content-type': 'application/json'
+                    }
+                }, (res) => {
+                    let data = '';
+                    
+                    res.on('data', (chunk) => {
+                        data += chunk;
+                    });
+                    
+                    res.on('end', () => {
+                        try {
+                            const response = JSON.parse(data);
+                            resolve({ ok: res.statusCode === 200, status: res.statusCode, data: response });
+                        } catch (error) {
+                            reject(error);
+                        }
+                    });
                 });
-                return;
-            }
-            
-            // Sort by sequence number
-            const sortedServices = aiServices.sort((a: AIServiceConfig, b: AIServiceConfig) => a.sequence - b.sequence);
-            
-            // Create detailed listing
-            let output = 'Detailed AI Services List:\n';
-            output += '==========================\n';
-            output += 'Seq  ID              Name                 Category      Status   URL\n';
-            output += '---- --------------- -------------------- ------------- -------- ------------------------------------------\n';
-            
-            for (const service of sortedServices) {
-                const status = service.enabled ? 'Enabled' : 'Disabled';
-                const category = service.category || 'Unknown';
-                output += `${service.sequence.toString().padStart(4)} ${service.id.padEnd(15)} ${service.name.padEnd(20)} ${category.padEnd(13)} ${status.padEnd(8)} ${service.url}\n`;
-            }
-            
-            this.postMessage({ 
-                type: 'output', 
-                content: output 
+                
+                req.on('error', (error) => {
+                    reject(error);
+                });
+                
+                req.end();
             });
-        } else {
-            // Original simple listing
-            const aiServices: AIServiceConfig[] = loadAIServices();
-            if (aiServices.length === 0) {
-                this.postMessage({ 
-                    type: 'output', 
-                    content: 'No AI services configured.\n' 
-                });
-                return;
+            
+            const response = await responsePromise;
+            
+            if (!(response as any).ok) {
+                throw new Error(`HTTP error! status: ${(response as any).status}`);
             }
             
-            // Get enabled services only for simple listing
-            const enabledServices = aiServices.filter((service: AIServiceConfig) => service.enabled);
-            const serviceNames = enabledServices.map((service: AIServiceConfig) => service.id);
-            const aiList = serviceNames.join(', ');
+            const responseData = (response as any).data;
+            const aiServices = responseData.ais || {};
+            
+            if (detailed) {
+                // Create detailed listing
+                let output = 'Detailed AI Services List:\n';
+                output += '==========================\n';
+                output += 'ID              Name                 Category      URL\n';
+                output += '--------------- -------------------- ------------- ------------------------------------------\n';
+                
+                let index = 1;
+                for (const [serviceId, serviceInfo] of Object.entries(aiServices)) {
+                    const service = serviceInfo as any;
+                    const category = service.category || 'Unknown';
+                    output += `${serviceId.padEnd(15)} ${(service.name || serviceId).padEnd(20)} ${category.padEnd(13)} ${service.url || 'N/A'}\n`;
+                    index++;
+                }
+                
+                this.postMessage({ 
+                    type: 'output', 
+                    content: output 
+                });
+            } else {
+                // Simple listing
+                const serviceNames = Object.keys(aiServices);
+                const aiList = serviceNames.join(', ');
+                this.postMessage({ 
+                    type: 'output', 
+                    content: `Supported AI services: ${aiList}\n` 
+                });
+            }
+            
+        } catch (error) {
             this.postMessage({ 
                 type: 'output', 
-                content: `Supported AI services: ${aiList}\n` 
+                content: `❌ Failed to get AI services list: ${error}\n` 
             });
         }
     }
@@ -259,15 +311,15 @@ Tips:
             });
             
             const options = {
-                hostname: requestUrl.hostname,
-                port: requestUrl.port ? parseInt(requestUrl.port) : 3000,
-                path: requestUrl.path,
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Content-Length': Buffer.byteLength(postData)
-                }
-            };
+                    hostname: requestUrl.hostname,
+                    port: requestUrl.port ? parseInt(requestUrl.port) : 3000,
+                    path: requestUrl.path,
+                    method: 'POST',
+                    headers: {
+                        'content-type': 'application/json',
+                        'content-length': Buffer.byteLength(postData)
+                    }
+                };
             
             const responsePromise = new Promise((resolve, reject) => {
                 const req = http.request(options, (res) => {
@@ -348,15 +400,15 @@ Tips:
             });
             
             const options = {
-                hostname: requestUrl.hostname,
-                port: requestUrl.port ? parseInt(requestUrl.port) : 3000,
-                path: requestUrl.path,
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Content-Length': Buffer.byteLength(postData)
-                }
-            };
+                    hostname: requestUrl.hostname,
+                    port: requestUrl.port ? parseInt(requestUrl.port) : 3000,
+                    path: requestUrl.path,
+                    method: 'POST',
+                    headers: {
+                        'content-type': 'application/json',
+                        'content-length': Buffer.byteLength(postData)
+                    }
+                };
             
             const responsePromise = new Promise((resolve, reject) => {
                 const req = http.request(options, (res) => {
@@ -415,8 +467,7 @@ Tips:
         const status = `
 📊 System Status:
 • Current AI: ${this.currentAI}
-• Podman: ${await this.podmanManager.isContainerRunning() ? 'Running' : 'Stopped'}
-• Browser: ${await this.podmanManager.isBrowserRunning() ? 'Running' : 'Stopped'}
+    • Podman: ${await this.podmanManager.isContainerRunning() ? 'Running' : 'Stopped'}
         `;
         this.postMessage({ type: 'output', content: status });
     }

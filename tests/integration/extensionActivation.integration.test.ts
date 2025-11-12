@@ -27,12 +27,11 @@ describe('Extension Activation Integration', () => {
         jest.clearAllMocks();
     });
     
-    it('should activate the extension without errors', async () => {
-        // Test extension activation
-        const activatePromise = extension.activate(mockContext);
-        
-        // Should not throw any errors
-        await expect(activatePromise).resolves.not.toThrow();
+    it('should activate the extension without errors', () => {
+        // Test extension activation (synchronous function)
+        expect(() => {
+            extension.activate(mockContext);
+        }).not.toThrow();
         
         // Verify the extension context was properly handled
         expect(mockContext.subscriptions.length).toBeGreaterThan(0);

@@ -59,3 +59,16 @@ README.md
 **/.github/**
 
 **/.specify/**
+**/.gitee/**
+
+# Exclude Playwright test reports
+playwright-report/**
+
+# Exclude TypeScript source files (only compiled JS needed)
+src/**
+
+# Exclude development scripts
+scripts/**
+
+# Exclude documentation files (not needed at runtime)
+doc/**

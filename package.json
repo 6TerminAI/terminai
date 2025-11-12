@@ -9,7 +9,6 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -34,7 +33,7 @@
     "commands": [
       {
         "command": "terminai.openTerminal",
-        "title": "Terminai: Open AI Terminal",
+        "title": "TerminAI: Open AI Terminal",
         "category": "TerminAI"
       }
     ],
@@ -113,6 +112,7 @@
     "mocha": "^10.0.0",
     "playwright": "^1.40.0",
     "sinon": "^15.0.0",
+    "ts-jest": "^29.4.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "vscode-test": "^1.6.1"

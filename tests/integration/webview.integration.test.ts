@@ -22,7 +22,9 @@ describe('Webview View Provider Integration', () => {
     it('should create webview with correct options', () => {
         // This test verifies that webview options are correctly configured
         const mockWebview = {
-            options: {}
+            webview: {
+                options: {}
+            }
         } as unknown as vscode.WebviewView;
         
         // Set webview options
